@@ -6,6 +6,8 @@ Leveraged books rarely die because one position moved. They die because six posi
 
 Every consumer crypto portfolio tool answers *"what is my portfolio worth?"*. Sentinel answers a different and much more useful question: **"what is the probability this account still exists in 30 days, and what is the cheapest single trade that improves it?"**
 
+![Survival simulation and the generated risk assessment](docs/survival-and-assessment.png)
+
 ---
 
 ## The thesis
@@ -31,6 +33,8 @@ Sentinel measures the failure mode directly and then prescribes against it.
 Correlation is measured **separately** in a calm regime and a stressed regime, and the gap between them (the *diversification decay*) is reported as a headline number.
 
 The obvious implementation — take the benchmark's worst N days and measure correlation there — **is wrong**, and wrong in the direction that would make this tool understate its own central claim. Conditioning on one tail of the factor truncates the factor's variance within the subsample, which mechanically shrinks the systematic share of each asset's variance and biases measured correlation *downward*. This is the Boyer et al. / Loretan–English critique of conditional correlation. A naive implementation reports that diversification **improves** in a crash.
+
+![Correlation regimes and the findings feed](docs/regimes-and-findings.png)
 
 Sentinel instead defines regimes by the benchmark's **rolling realised volatility**: days in the top quartile of trailing 7-day volatility form the stressed regime, days in the bottom half form the calm regime, and the band between is deliberately left out so the two samples stay distinct. Volatility regimes are two-sided, so they do not truncate the factor distribution — and they correspond to what actually causes simultaneous liquidation, which is sustained high-volatility periods rather than one bad print.
 
