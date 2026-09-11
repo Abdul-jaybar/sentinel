@@ -4,7 +4,9 @@ import type {
   PricedPosition,
   RiskReport,
 } from "@/lib/types";
+import { datasetFullHistory } from "@/lib/market/dataset";
 import { buildAlerts } from "./alerts";
+import { runBacktest, type BacktestReport } from "./backtest";
 import { buildCascade, defaultMaintenanceMarginRate, type CascadeReport } from "./cascade";
 import { correlationMatrix, covarianceMatrix } from "./matrix";
 import {
@@ -16,7 +18,7 @@ import {
 import { prescribeActions, type PrescriptionReport } from "./prescribe";
 import { correlationRegimes, type RegimeCorrelation } from "./regime";
 import { alignSeries, portfolioPnlSeries } from "./returns";
-import { runStressTests } from "./stress";
+import { resolveScenarios, runStressTests } from "./stress";
 import { beta as olsBeta, stdev, TRADING_DAYS_PER_YEAR } from "./stats";
 import { simulateSurvival, type SurvivalReport } from "./survival";
 import {
@@ -32,6 +34,20 @@ export interface SentinelReport extends RiskReport {
   prescription: PrescriptionReport;
   /** Assets dropped for insufficient overlapping history. */
   droppedAssets: string[];
+  /**
+   * Out-of-sample validation. Null unless explicitly requested, because it
+   * re-runs the simulation at every walk-forward origin and costs roughly a
+   * second. `/api/backtest` is the endpoint that asks for it.
+   */
+  backtest: BacktestReport | null;
+  /** How much of the model's own claim is backed by measured data. */
+  dataQuality: {
+    lookbackDays: number;
+    measuredScenarios: number;
+    totalScenarios: number;
+    /** Enough history for the walk-forward validation to run at all. */
+    backtestable: boolean;
+  };
 }
 
 export interface EngineOptions {
@@ -41,6 +57,13 @@ export interface EngineOptions {
   paths?: number;
   /** Skip the (expensive) prescription search — used by the preview endpoint. */
   skipPrescription?: boolean;
+  /**
+   * Run the out-of-sample validation battery. Off by default: it re-simulates
+   * at every walk-forward origin and roughly doubles the request time.
+   */
+  includeBacktest?: boolean;
+  /** Rolling estimation window for the backtest, in days. */
+  backtestTrainWindow?: number;
 }
 
 /** Attach live prices and derive exposure figures for each raw position. */
@@ -166,7 +189,7 @@ export function buildReport(
     betas,
   );
 
-  const drawdowns = drawdownSeries(aligned.timestamps, pnlSeries, equity);
+  const drawdowns = drawdownSeries(aligned.timestamps, priced, returnMatrix);
   const performance = computePerformance(
     pnlSeries,
     equity,
@@ -190,7 +213,22 @@ export function buildReport(
   });
 
   const cascade = buildCascade(priced, betaMap, equity);
-  const stress = runStressTests(priced, betaMap, equity);
+
+  // Prefer what actually happened over what a beta model says would have.
+  //
+  // Scenario windows reach back to 2020, far outside the lookback the dashboard
+  // displays, so this deliberately searches the FULL committed dataset rather
+  // than the trimmed `series` the rest of the report is computed on. Any
+  // scenario whose window is covered for every held asset comes back
+  // `measured`; the rest stay `assumed` and say so on screen.
+  const scenarioHistory = [
+    ...series,
+    ...datasetFullHistory(coinIds.concat(benchmarkCoinId)).filter(
+      (d) => !series.some((s) => s.coinId === d.coinId && s.prices.length >= d.prices.length),
+    ),
+  ];
+  const scenarios = resolveScenarios(scenarioHistory, coinIds, benchmarkCoinId);
+  const stress = runStressTests(priced, betaMap, equity, scenarios);
   const liquidation = computeLiquidationRisk(priced, dailyVolatility, horizonDays);
 
   const coinIndex: Record<string, number> = {};
@@ -204,6 +242,17 @@ export function buildReport(
         horizonDays,
         ruinThreshold,
       });
+
+  const backtestTrainWindow = options.backtestTrainWindow ?? 120;
+  const backtest =
+    options.includeBacktest &&
+    aligned.timestamps.length > backtestTrainWindow + 10
+      ? runBacktest(priced, returnMatrix, {
+          trainWindow: backtestTrainWindow,
+          horizonDays,
+          ruinThreshold,
+        })
+      : null;
 
   const alerts = buildAlerts({
     exposure,
@@ -249,5 +298,13 @@ export function buildReport(
     cascade,
     prescription,
     droppedAssets: aligned.dropped,
+    backtest,
+    dataQuality: {
+      lookbackDays: aligned.timestamps.length,
+      measuredScenarios: scenarios.filter((s) => s.provenance === "measured")
+        .length,
+      totalScenarios: scenarios.length,
+      backtestable: aligned.timestamps.length > backtestTrainWindow + 10,
+    },
   };
 }

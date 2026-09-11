@@ -86,6 +86,13 @@ export function simulateSurvival(
     paths?: number;
     ruinThreshold?: number;
     blockLength?: number;
+    /**
+     * Override the portfolio-derived seed. Used by the walk-forward backtest so
+     * successive origins are not the same draw replayed against different data;
+     * left unset everywhere else, which is what makes a given portfolio always
+     * produce the same report.
+     */
+    seed?: number;
   } = {},
 ): SurvivalReport {
   const horizonDays = options.horizonDays ?? 30;
@@ -120,7 +127,11 @@ export function simulateSurvival(
     };
   }
 
-  const rng = mulberry32(seedFromPositions(positions));
+  const rng = mulberry32(
+    options.seed !== undefined
+      ? (seedFromPositions(positions) ^ Math.imul(options.seed, 0x9e3779b1)) >>> 0
+      : seedFromPositions(positions),
+  );
   const restartProb = 1 / blockLength;
 
   // equityByDay[day] = equity fraction across all paths, for percentiles.

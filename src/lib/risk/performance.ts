@@ -5,7 +5,7 @@ import type {
   PerformanceBlock,
   PricedPosition,
 } from "@/lib/types";
-import { liquidationPrice } from "./cascade";
+import { defaultMaintenanceMarginRate, liquidationPrice } from "./cascade";
 import {
   TRADING_DAYS_PER_YEAR,
   excessKurtosis,
@@ -21,26 +21,100 @@ import {
  * This is a back-cast, not a track record: it asks "what would today's book
  * have done through the last N days", which is the honest way to give a
  * drawdown figure for a portfolio the user just typed in.
+ *
+ * TWO BUGS LIVED HERE, AND BOTH ARE WORTH KNOWING ABOUT.
+ *
+ * 1. Constant notional is not buy-and-hold. The first version walked equity as
+ *    `equity += sum_i notional_i * r_{i,t}` with the notionals fixed at today's
+ *    values. Holding dollar exposure constant while equity falls is not a
+ *    passive book — it is a strategy that re-levers into every drawdown, and it
+ *    can drive an *unlevered spot portfolio* to zero, which is impossible. A
+ *    real book holds constant QUANTITY and lets exposure shrink with price. So
+ *    this now compounds prices along the path and revalues the positions, which
+ *    is the same accounting the Monte Carlo and the calibration test use.
+ *
+ *    (Constant-notional P&L is still exactly right for VaR, which is a
+ *    single-period measure where P&L is linear in returns. It is only wrong
+ *    when compounded, which is why the two live in different functions.)
+ *
+ * 2. The account is absorbing at zero. Without a floor a levered book reported
+ *    a drawdown of -335%. That is not conservative, it is meaningless: an
+ *    account whose equity reaches zero has been closed by the venue, and
+ *    everything after is a simulation of trading with money that no longer
+ *    exists. The walk now stops there, pins equity to zero and drawdown to -1,
+ *    and flags the point as `ruined` so the chart can mark where the book died
+ *    instead of drawing a recovery that could never have happened.
+ *
+ * Drawdown is therefore bounded to [-1, 0] by construction. A value outside
+ * that range is always a bug, never a finding.
  */
 export function drawdownSeries(
   timestamps: number[],
-  pnlSeries: number[],
-  startingEquity: number,
+  positions: PricedPosition[],
+  returnMatrix: number[][],
 ): DrawdownPoint[] {
-  if (startingEquity <= 0 || pnlSeries.length === 0) return [];
-  let equity = startingEquity;
+  const startingEquity = positions.reduce((acc, p) => acc + p.equity, 0);
+  const days = returnMatrix[0]?.length ?? 0;
+  if (startingEquity <= 0 || days === 0 || positions.length === 0) return [];
+
+  const prices = positions.map((p) => p.price);
+  const alive = positions.map(() => true);
+  const mmrs = positions.map(
+    (p) => p.maintenanceMarginRate ?? defaultMaintenanceMarginRate(p.leverage),
+  );
+
   let peak = startingEquity;
+  let ruined = false;
   const out: DrawdownPoint[] = [];
 
-  for (let t = 0; t < pnlSeries.length; t++) {
-    equity += pnlSeries[t];
+  for (let t = 0; t < days; t++) {
+    const timestamp = timestamps[t + 1] ?? timestamps[t] ?? Date.now();
+
+    if (ruined) {
+      out.push({ timestamp, equityIndex: 0, drawdown: -1, ruined: true });
+      continue;
+    }
+
+    for (let i = 0; i < positions.length; i++) {
+      if (!alive[i]) continue;
+      prices[i] *= 1 + (returnMatrix[i]?.[t] ?? 0);
+    }
+
+    let equity = 0;
+    for (let i = 0; i < positions.length; i++) {
+      if (!alive[i]) continue;
+      const p = positions[i];
+      const positionEquity =
+        p.initialMargin + p.quantity * (prices[i] - p.entryPrice);
+
+      if (p.leverage > 1) {
+        const maintenance = Math.abs(p.quantity * prices[i]) * mmrs[i];
+        if (positionEquity <= maintenance) {
+          alive[i] = false;
+          continue;
+        }
+      } else if (positionEquity <= 0) {
+        alive[i] = false;
+        continue;
+      }
+      equity += positionEquity;
+    }
+
+    if (equity <= 0) {
+      ruined = true;
+      out.push({ timestamp, equityIndex: 0, drawdown: -1, ruined: true });
+      continue;
+    }
+
     peak = Math.max(peak, equity);
     out.push({
-      timestamp: timestamps[t + 1] ?? timestamps[t] ?? Date.now(),
+      timestamp,
       equityIndex: equity / startingEquity,
-      drawdown: peak > 0 ? equity / peak - 1 : 0,
+      drawdown: Math.max(-1, Math.min(0, equity / peak - 1)),
+      ruined: false,
     });
   }
+
   return out;
 }
 
@@ -54,10 +128,20 @@ export function computePerformance(
   const dailyVol = stdev(portfolioReturns);
   const dailyMean = mean(portfolioReturns);
 
-  const downside = portfolioReturns.filter((r) => r < 0);
+  // Target downside deviation, LPM(2) about a zero target:
+  //
+  //   DD = sqrt( (1/N) * sum_t min(r_t, 0)^2 )
+  //
+  // The sum runs over downside days but the average is taken over ALL N
+  // observations. Dividing by the count of downside days instead — which is
+  // the easy mistake, and what this used to do — inflates the denominator of
+  // Sortino and quietly reports a worse ratio than the definition gives.
+  const n0 = portfolioReturns.length;
   const downsideDev =
-    downside.length > 1
-      ? Math.sqrt(mean(downside.map((r) => r * r)))
+    n0 > 1
+      ? Math.sqrt(
+          portfolioReturns.reduce((acc, r) => acc + Math.min(r, 0) ** 2, 0) / n0,
+        )
       : dailyVol;
 
   const annualisedVolatility = dailyVol * Math.sqrt(TRADING_DAYS_PER_YEAR);
@@ -85,10 +169,14 @@ export function computePerformance(
         ? annualisedReturn / (downsideDev * Math.sqrt(TRADING_DAYS_PER_YEAR))
         : 0,
     maxDrawdown:
-      drawdowns.length > 0 ? Math.min(...drawdowns.map((d) => d.drawdown)) : 0,
+      drawdowns.length > 0
+        ? Math.max(-1, Math.min(...drawdowns.map((d) => d.drawdown)))
+        : 0,
     beta: varianceBenchmark > 0 ? covar / varianceBenchmark : 0,
     skewness: skewness(pnlSeries),
     excessKurtosis: excessKurtosis(pnlSeries),
+    backcastRuined: drawdowns.some((d) => d.ruined),
+    backcastRuinTimestamp: drawdowns.find((d) => d.ruined)?.timestamp ?? null,
   };
 }
 

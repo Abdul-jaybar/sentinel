@@ -194,10 +194,20 @@ export function StressTable({ report }: { report: SentinelReport }) {
               className="border-b border-ink-700/40 last:border-0 align-top hover:bg-ink-850/40"
             >
               <td className="py-3 pr-3">
-                <div className="font-medium text-ink-100">{s.name}</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-ink-100">{s.name}</span>
+                  <Badge tone={s.provenance === "measured" ? "safe" : "neutral"}>
+                    {s.provenance}
+                  </Badge>
+                </div>
                 <p className="mt-1 max-w-sm text-[11.5px] leading-relaxed text-ink-500">
                   {s.description}
                 </p>
+                {s.sourceNote && (
+                  <p className="mt-1.5 max-w-sm text-[11px] leading-relaxed text-ink-500/80 italic">
+                    {s.sourceNote}
+                  </p>
+                )}
               </td>
               <td className="tnum px-3 py-3 text-right text-ink-300">
                 {signedPct(s.benchmarkShock, 0)}
@@ -243,11 +253,15 @@ export function StressTable({ report }: { report: SentinelReport }) {
         </tbody>
       </table>
       <Caveat>
-        Each asset is shocked by its own beta to {report.benchmarkSymbol},
-        amplified for the scenario, because betas compress upward in genuine
-        risk-off events. Losses on isolated-margin positions are capped at the
-        margin posted. Venue failure, depegs, and liquidity gaps are outside
-        this model.
+        A <strong>measured</strong> scenario uses the return each asset actually
+        realised over that calendar window — no beta model in the path at all. An{" "}
+        <strong>assumed</strong> scenario has no data covering the window for
+        every held asset, so it falls back to shocking each asset by its own beta
+        to {report.benchmarkSymbol}, amplified because betas compress upward in
+        genuine risk-off events. That amplifier is an approximation and the badge
+        is there so it is never mistaken for a measurement. Losses on
+        isolated-margin positions are capped at the margin posted. Venue failure,
+        depegs, and liquidity gaps are outside this model either way.
       </Caveat>
     </div>
   );

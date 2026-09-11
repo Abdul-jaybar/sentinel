@@ -24,6 +24,7 @@ import {
   PrescriptionPanel,
   StressTable,
 } from "@/components/panels";
+import { ValidationPanel } from "@/components/ValidationPanel";
 
 const STORAGE_KEY = "sentinel.positions.v1";
 
@@ -545,10 +546,17 @@ export default function Home() {
               </Card>
             </div>
 
+            {/* -------- Validation -------- */}
+            <ValidationPanel positions={positions} />
+
             {/* -------- Stress + liquidation -------- */}
             <Card
               title="Historical stress scenarios"
-              subtitle="Real events, applied to today's book"
+              subtitle={
+                report.dataQuality.measuredScenarios > 0
+                  ? `${report.dataQuality.measuredScenarios} of ${report.dataQuality.totalScenarios} measured from real data for these assets; the rest are modelled`
+                  : "Modelled: a benchmark move propagated to each asset by its beta. Run `npm run fetch:history` to replace these with what actually happened."
+              }
             >
               <StressTable report={report} />
             </Card>
@@ -589,11 +597,22 @@ export default function Home() {
                     size="sm"
                   />
                 </div>
+                {report.performance.backcastRuined && (
+                  <p className="mt-3 rounded-lg border border-signal-crit/40 bg-signal-crit/10 px-3 py-2 text-[12px] leading-relaxed text-signal-crit">
+                    This book would not have survived the lookback window. The
+                    curve stops at the day equity reached zero — an account that
+                    is closed cannot participate in the recovery, so nothing is
+                    drawn after that point.
+                  </p>
+                )}
                 <Caveat>
                   This is a back-cast of the current book, not a track record.
                   It answers &ldquo;what would today&apos;s positions have
                   done&rdquo;, which is the only honest drawdown figure for a
-                  portfolio that was just entered.
+                  portfolio that was just entered. Quantities are held constant
+                  and positions are revalued daily, so exposure shrinks as prices
+                  fall — holding <em>dollar</em> exposure constant instead would
+                  silently model re-levering into every drawdown.
                 </Caveat>
               </Card>
             </div>

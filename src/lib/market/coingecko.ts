@@ -1,5 +1,6 @@
 import type { MarketAsset, PriceSeries } from "@/lib/types";
 import { marketCache } from "./cache";
+import { datasetHistory } from "./dataset";
 import { fallbackHistory, fallbackMarkets } from "./fallback";
 
 const BASE = "https://api.coingecko.com/api/v3";
@@ -193,11 +194,25 @@ export async function getHistory(
   }
 
   if (results.length === 0) {
+    // Three tiers, tried in order of how much they can be trusted: live, then
+    // the committed real dataset, then the synthetic generator. Tier 2 only
+    // counts if it covers every requested coin — a matrix half real and half
+    // synthetic is worse than one that is honestly all synthetic.
+    const committed = datasetHistory(unique, days);
+    if (committed) {
+      return {
+        data: committed,
+        source: "fallback",
+        notice:
+          "Live price feed unreachable. Showing the committed historical dataset — real closes, but not current ones.",
+      };
+    }
+
     return {
       data: fallbackHistory(unique, days),
       source: "fallback",
       notice:
-        "Historical price feed unreachable. Risk figures below are computed on the bundled reference dataset, not on live prices.",
+        "Historical price feed unreachable and no committed dataset present. Risk figures below are computed on a SYNTHETIC reference dataset — the structure is realistic, the prices are not real.",
     };
   }
 
@@ -205,7 +220,8 @@ export async function getHistory(
   const have = new Set(results.map((r) => r.coinId));
   const missing = unique.filter((id) => !have.has(id));
   if (missing.length > 0) {
-    results.push(...fallbackHistory(missing, days));
+    const committed = datasetHistory(missing, days);
+    results.push(...(committed ?? fallbackHistory(missing, days)));
   }
 
   return {

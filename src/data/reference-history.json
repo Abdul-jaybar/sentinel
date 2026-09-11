@@ -1,0 +1,1 @@
+{"generatedAt":0,"source":"none","note":"Placeholder. Run `npm run fetch:history` to populate this with real daily closes from CoinGecko, then commit it. Until then the app falls back to the clearly-labelled synthetic dataset and every historical stress scenario stays marked `assumed`.","series":[]}

@@ -6,6 +6,8 @@ Leveraged books rarely die because one position moved. They die because six posi
 
 Every consumer crypto portfolio tool answers *"what is my portfolio worth?"*. Sentinel answers a different and much more useful question: **"what is the probability this account still exists in 30 days, and what is the cheapest single trade that improves it?"**
 
+And then it does the thing almost no risk tool does: it [marks its own homework](#9-does-the-model-actually-work) out of sample, and shows you the score even when the score is bad.
+
 ![Survival simulation and the generated risk assessment](docs/survival-and-assessment.png)
 
 ---
@@ -115,6 +117,58 @@ Distance-to-liquidation is the wrong number: being briefly wrong is enough to be
 P( min_{t≤T} S_t ≤ B ) = 2 · Φ( ln(B/S) / (σ√T) )
 ```
 
+### 9. Does the model actually work?
+
+The other eight sections are the model talking. This one is the model being marked.
+
+A risk tool that has never been backtested is a risk tool that has never been contradicted, and most of them never are — they ship a number and move on. Sentinel runs two independent out-of-sample checks, on demand, from `/api/backtest`. Every forecast is produced from data ending strictly before the outcome it is scored against.
+
+**VaR exception testing.** The history is walked one day at a time. At each day, all three VaR estimators are re-fitted on a rolling 120-day window ending the day before, and the forecast is compared with what actually happened. The exception sequence is then put through the standard battery:
+
+| Test | Asks | Distribution |
+|---|---|---|
+| Kupiec (1995) proportion-of-failures | Is the *number* of exceptions right? | χ²(1) |
+| Christoffersen (1998) independence | Are exceptions *clustered*? | χ²(1) |
+| Conditional coverage | Both jointly | χ²(2) |
+
+Both χ² tails have closed forms at these degrees of freedom — `P(X>x) = 2(1-Φ(√x))` for df 1, `exp(-x/2)` for df 2 — so there is no special-function library in the path here either. The p-values are verified against published critical tables in `tests/backtest.test.ts`.
+
+The independence test is the one that earns its place. Kupiec cannot tell the difference between ten exceptions spread evenly across a year and ten on ten consecutive days; the first is a working model, the second is an account that no longer exists. Christoffersen separates them — on a deliberately clustered sequence the statistic is 137 against 2.0 for an evenly spread one.
+
+Running this produced a finding I did not expect and have not smoothed over: **the 99% variance-covariance estimator fails on every leveraged preset**, with realised exception rates around 3% against 1% expected, while Cornish-Fisher passes. That is the fat-tail argument for the Cornish-Fisher correction stated as a measurement rather than as a footnote — and it means the normal-distribution VaR number in the UI is there to be compared against, not to be sized off.
+
+**Survival calibration.** The headline ruin probability is scored directly. At each walk-forward origin the simulation is run on the training window alone, and the realised path over the following horizon is replayed with identical liquidation accounting to see whether the account really did breach the threshold. The pairs are scored with a Brier score, a Brier skill score against the sample base rate, and a reliability curve.
+
+Two things are reported rather than hidden:
+
+- **Overlapping horizons.** Origins three days apart share most of their outcome window, so the outcomes are heavily autocorrelated and the origin count massively overstates the evidence. The panel reports an *effective sample size* — the number of non-overlapping horizons — and it is usually an order of magnitude smaller. On a two-year sample it is about twenty.
+- **The asymmetry.** A model that looks well calibrated on a sample this size is not proven correct; there is not enough independent evidence for that. A model that looks badly calibrated **is** proven wrong. That asymmetry is the entire reason the panel exists, and it is why the number worth reading is the direction of the bias, not the third decimal.
+
+---
+
+## Where the numbers come from
+
+Three tiers of price data, tried in order, and the difference is visible on every surface that uses them:
+
+| Tier | What it is | How it is labelled |
+|---|---|---|
+| 1. Live | CoinGecko, cached and circuit-broken | normal |
+| 2. Committed dataset | Real daily closes in `src/data/reference-history.json` | "real closes, not current ones" |
+| 3. Synthetic | The deterministic generator in `fallback.ts` | "SYNTHETIC — structure is realistic, prices are not real" |
+
+Tier 2 ships empty and is populated by one command:
+
+```bash
+npm run fetch:history          # writes ~2400 daily closes per asset back to 2020
+```
+
+Committing that file is what turns two claims from approximations into measurements:
+
+- Every **historical stress scenario** whose calendar window the data covers flips from `assumed` — a hand-specified benchmark shock propagated to each asset by its beta — to `measured`, the per-asset return that actually occurred, with no beta model in the path at all. The badge in the stress table says which one you are looking at, always. A window is only used if **every held asset** is covered; a scenario that mixed a real BTC move with a modelled SOL one would be the worst of both.
+- The **validation battery** gets years of runway instead of months, which is the difference between detecting gross miscalibration and measuring calibration.
+
+Tier 2 is deliberately a committed file rather than a runtime fetch. A stress scenario that silently changes because an upstream API backfilled a candle is not a stress scenario, it is a rumour.
+
 ---
 
 ## Architecture
@@ -173,10 +227,12 @@ src/
     page.tsx                  dashboard orchestration
     api/markets/route.ts      cached market snapshot
     api/risk/route.ts         the single compute endpoint
+    api/backtest/route.ts     out-of-sample validation
     api/explain/route.ts      optional conversational layer
   components/
     charts.tsx                survival fan · cascade · attribution · heatmaps
     panels.tsx                alerts · prescription · stress · narrative
+    ValidationPanel.tsx       backtest results and reliability curve
     PositionEditor.tsx        portfolio table with presets
     ui.tsx                    primitives
   lib/
@@ -193,19 +249,33 @@ src/
       prescribe.ts            candidate search and efficiency ranking
       alerts.ts               threshold rules with stated values
       narrate.ts              deterministic risk narrator
+      backtest.ts             Kupiec · Christoffersen · walk-forward calibration
       engine.ts               orchestration
     market/
       coingecko.ts            live client with circuit breaker
       cache.ts                TTL cache with request coalescing
+      dataset.ts              committed real-close dataset loader
       fallback.ts             labelled synthetic reference dataset
+  data/
+    reference-history.json    committed daily closes (npm run fetch:history)
+scripts/
+  fetch-history.mjs           populates the dataset above
 tests/
   stats.test.ts               known-answer tests for every estimator
   engine.test.ts              invariants, monotonicity, end-to-end
+  backtest.test.ts            statistical tests vs published critical values
+  performance.test.ts         drawdown regressions, scenario provenance
 ```
 
 ---
 
 ## Engineering decisions worth calling out
+
+**Two bugs in the drawdown back-cast, both of which produced impossible numbers.** The first version walked equity as `equity += Σ notional_i · r_i,t` with notionals fixed at today's values. Holding *dollar* exposure constant while equity falls is not a passive book — it is a strategy that re-levers into every drawdown, and it drove an **unlevered spot portfolio to zero**, which cannot happen. A real book holds constant *quantity* and lets exposure shrink with price. Separately, with no floor at zero a levered book reported a drawdown of **−335%**; an account whose equity reaches zero has been closed by the venue, and everything after that is a simulation of trading with money that no longer exists. The curve is now compounded, position-by-position, with the same liquidation accounting the Monte Carlo uses, and it is absorbing at zero. Drawdown is bounded to [−1, 0] by construction, and `tests/performance.test.ts` asserts that an unlevered book can never be ruined.
+
+(Constant-notional P&L is still exactly right for **VaR**, which is a single-period measure where P&L is linear in returns. It is only wrong when compounded — which is why the two now live in different functions.)
+
+**Sortino divides by the right N.** Target downside deviation is `sqrt( (1/N) Σ min(r_t,0)² )`: the sum runs over losing days, the average over *all* observations. Dividing by the count of losing days instead — the easy mistake, and what this did — inflates the denominator and silently reports a worse ratio than the definition gives.
 
 **Series alignment happens before anything else.** Upstream returns slightly different timestamps per asset — different listing dates, occasional gaps. Computing a covariance matrix across misaligned series silently produces garbage, and it is the classic bug in home-made risk tools. `alignSeries` intersects on calendar day, forward-fills at most one missing day, and *drops and reports* any asset with under 80% coverage rather than quietly corrupting the matrix.
 
@@ -229,7 +299,7 @@ npm run dev          # http://localhost:3000
 ```
 
 ```bash
-npm test             # 49 tests
+npm test             # 93 tests
 npm run typecheck
 npm run build
 ```
@@ -265,6 +335,8 @@ Sentinel is built on daily closes and a bootstrap of those same days. It has **n
 - **intraday** liquidation risk, which is understated because the model steps one day at a time
 
 Cross-margin accounts are modelled as isolated margin, which is the conservative direction for cascade analysis but not what every venue actually does.
+
+Any stress scenario still badged `assumed` is a beta-propagated approximation rather than a measurement — `npm run fetch:history` is what fixes that, and the badge is what tells you whether it has been run.
 
 Treat every number as a lower bound on how bad things can get, and as a tool for **comparing portfolios against each other** rather than as a forecast.
 

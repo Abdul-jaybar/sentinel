@@ -109,8 +109,12 @@ export interface RiskContribution {
 
 export interface DrawdownPoint {
   timestamp: number;
+  /** Account equity as a multiple of starting equity. Floored at 0. */
   equityIndex: number;
+  /** Peak-to-trough, in [-1, 0]. -1 means the account was gone. */
   drawdown: number;
+  /** True from the first day the back-cast equity reached zero onward. */
+  ruined: boolean;
 }
 
 export interface StressResult {
@@ -119,6 +123,14 @@ export interface StressResult {
   description: string;
   /** Shock applied to the benchmark, e.g. -0.37 */
   benchmarkShock: number;
+  /**
+   * "measured" — per-asset returns read from the real dataset for this window.
+   * "assumed"  — a hand-specified benchmark move propagated by beta.
+   * Surfaced in the UI so nobody mistakes one for the other.
+   */
+  provenance: "assumed" | "measured";
+  /** Provenance detail: the window measured, or where an assumption came from. */
+  sourceNote: string | null;
   /** Portfolio P&L in USD under the scenario. */
   pnl: number;
   /** Equity remaining after the shock. */
@@ -167,6 +179,13 @@ export interface PerformanceBlock {
   beta: number;
   skewness: number;
   excessKurtosis: number;
+  /**
+   * True when replaying today's book over the lookback window would have taken
+   * account equity to zero. When this is set, `maxDrawdown` is -1 and the
+   * equity curve after that date is not a forecast of anything.
+   */
+  backcastRuined: boolean;
+  backcastRuinTimestamp: number | null;
 }
 
 export interface ConcentrationBlock {
