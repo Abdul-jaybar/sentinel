@@ -86,7 +86,7 @@ Without it — create an empty repo at github.com/new using the metadata above,
 then:
 
 ```bash
-git remote add origin https://github.com/abdullahnoaman/sentinel.git
+git remote add origin https://github.com/Abdul-jaybar/sentinel.git
 git branch -M main
 git push -u origin main
 ```
@@ -139,4 +139,4 @@ delete and recreate it empty, or `git pull --rebase origin main` then push.
 Check with `git remote -v` and fix with `git remote set-url origin <correct>`.
 
 **"Permission denied (publickey)"** — you are on the SSH URL without SSH keys
-set up. Switch to HTTPS: `git remote set-url origin https://github.com/abdullahnoaman/sentinel.git`
+set up. Switch to HTTPS: `git remote set-url origin https://github.com/Abdul-jaybar/sentinel.git`
