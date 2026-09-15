@@ -24,21 +24,21 @@ CI runs all four on every push and pull request. A red build is not merged.
 
 The repository has a hard split, and it is worth respecting:
 
-- **`src/lib/risk/`** — the quantitative engine. Pure functions, zero runtime
+- **`src/lib/risk/`**: the quantitative engine. Pure functions, zero runtime
   dependencies, no React, no `fetch`, no `Date.now()` inside a calculation.
   Everything in here is unit-testable without a browser or a network, and it
   stays that way.
-- **`src/lib/market/`** — everything that talks to the outside world, plus the
+- **`src/lib/market/`**: everything that talks to the outside world, plus the
   three-tier data fallback.
-- **`src/app/api/`** — thin route handlers. They validate input with zod, call
+- **`src/app/api/`**: thin route handlers. They validate input with zod, call
   the engine, and serialise. No arithmetic.
-- **`src/components/`** — presentation. No risk logic; if a component is doing
+- **`src/components/`**: presentation. No risk logic; if a component is doing
   a calculation that belongs in `lib/risk`, move it.
 
 ## Standards for the engine
 
 **Every estimator needs a known-answer test.** Not a snapshot of what the code
-currently returns — a value derived independently, from a published table or a
+currently returns. It must be a value derived independently, from a published table or a
 closed form worked out by hand. A test that asserts the code agrees with itself
 proves nothing. `tests/stats.test.ts` and `tests/backtest.test.ts` are the
 reference for what this looks like.

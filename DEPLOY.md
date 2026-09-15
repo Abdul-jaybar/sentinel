@@ -1,10 +1,10 @@
 # Getting Sentinel onto GitHub and Vercel
 
-Two steps, about five minutes total. You need a GitHub account and a Vercel account (free tier is fine — sign into Vercel with GitHub so they're already linked).
+Two steps, about five minutes total. You need a GitHub account and a Vercel account (the free tier is fine; sign into Vercel with GitHub so they're already linked).
 
 ---
 
-## Step 1 — Push to GitHub
+## Step 1. Push to GitHub
 
 Unzip the project, open a terminal in the `sentinel` folder, and check it runs:
 
@@ -13,7 +13,7 @@ npm install
 npm run typecheck && npm run lint && npm test && npm run build
 ```
 
-All four must pass before you push — CI runs exactly these, and a red badge on a
+All four must pass before you push. CI runs exactly these, and a red badge on a
 pinned repo is worse than no badge. You should see **93 tests passing**.
 
 Then start it:
@@ -42,7 +42,7 @@ git commit -m "Add reference dataset: daily closes 2020-01-01 to <today>"
 This matters more than it looks. Until that file has real data in it:
 
 - every historical stress scenario is badged **`assumed`** rather than
-  **`measured`** — a beta-propagated approximation instead of what actually
+  **`measured`**, a beta-propagated approximation instead of what actually
   happened, and the UI says so honestly;
 - the validation panel has only a few months of runway instead of years.
 
@@ -59,7 +59,7 @@ gh repo create sentinel --public --source=. --remote=origin --push
 
 That creates the repository and pushes in one command.
 
-**Without the CLI:** create an empty repository named `sentinel` at [github.com/new](https://github.com/new) — do *not* let it add a README, licence, or .gitignore — then run:
+**Without the CLI:** create an empty repository named `sentinel` at [github.com/new](https://github.com/new). Do *not* let it add a README, licence, or .gitignore. Then run:
 
 ```bash
 git remote add origin https://github.com/YOUR-USERNAME/sentinel.git
@@ -71,7 +71,7 @@ The project already has a commit in it, so there's nothing to stage first.
 
 ---
 
-## Step 2 — Deploy on Vercel
+## Step 2. Deploy on Vercel
 
 1. Go to [vercel.com/new](https://vercel.com/new).
 2. Pick the `sentinel` repository and click **Import**.
@@ -105,7 +105,7 @@ The app is fully functional without either of these. Add them under **Settings �
 
 **Build fails on Vercel but works locally.** Check the build log for a type error. Run `npm run typecheck` locally; it uses the exact same compiler settings CI and Vercel use.
 
-**The site loads but shows "reference dataset" instead of live prices.** CoinGecko is rate-limiting your deployment's IP. This is expected behaviour, not a bug — the app is designed to stay useful when the feed is down, and it says so on screen. Adding a free `COINGECKO_API_KEY` fixes it.
+**The site loads but shows "reference dataset" instead of live prices.** CoinGecko is rate-limiting your deployment's IP. This is expected behaviour, not a bug. The app is designed to stay useful when the feed is down, and it says so on screen. Adding a free `COINGECKO_API_KEY` fixes it.
 
 **`/api/risk` times out.** The simulation runs in roughly 300 ms warm, so a timeout means the upstream fetch is hanging. `maxDuration` is already set to 60 s on that route, which is within the Hobby plan's limit.
 
