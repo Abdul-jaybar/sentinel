@@ -7,6 +7,7 @@ import { buildCascade, liquidationPrice } from "@/lib/risk/cascade";
 import { computeVar } from "@/lib/risk/var";
 import { symmetricEigenvalues } from "@/lib/risk/matrix";
 import { simulateSurvival, mulberry32 } from "@/lib/risk/survival";
+import { runStressTests, type Scenario } from "@/lib/risk/stress";
 
 const DAY = 86_400_000;
 
@@ -456,5 +457,29 @@ describe("degenerate input", () => {
     );
     expect(report.positions).toHaveLength(0);
     expect(Number.isFinite(report.exposure.equity)).toBe(true);
+  });
+});
+
+describe("stress tests", () => {
+  it("never books a liquidation as a gain, even when the position is already underwater", () => {
+    // A 3x short opened at 100 with the price now at 200 has already lost more
+    // than its margin. A rally liquidates it, and that must cost nothing
+    // further rather than hand back the missing equity as profit.
+    const rally: Scenario = {
+      id: "rally",
+      name: "rally",
+      description: "",
+      benchmarkShock: 0.5,
+      betaAmplifier: 1,
+      provenance: "assumed",
+      window: null,
+    };
+    const priced = pricePositions(
+      [{ id: "1", coinId: "bitcoin", symbol: "BTC", quantity: -1, entryPrice: 100, leverage: 3, venue: "perp" }],
+      { bitcoin: 200 },
+    );
+    const [result] = runStressTests(priced, { bitcoin: 1 }, 100, [rally]);
+    expect(result.liquidated).toEqual(["BTC"]);
+    expect(result.pnl).toBe(0);
   });
 });

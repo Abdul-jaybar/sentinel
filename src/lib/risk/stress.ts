@@ -242,14 +242,13 @@ export function runStressTests(
         const maintenance = Math.abs(p.quantity * shockedPrice) * mmr;
         if (positionEquity <= maintenance) {
           liquidated.push(p.symbol);
-          // Loss is capped at the margin posted: you cannot lose more than the
-          // isolated collateral on the position.
-          pnl -= p.initialMargin + p.unrealizedPnl;
-          perAsset.push({
-            symbol: p.symbol,
-            shock,
-            pnl: -(p.initialMargin + p.unrealizedPnl),
-          });
+          // Liquidation wipes out whatever equity the position has left, and
+          // no more: you cannot lose more than the isolated collateral. If the
+          // position is already underwater, it has nothing left to lose, and
+          // closing it must not show up as a gain.
+          const loss = Math.max(0, p.initialMargin + p.unrealizedPnl);
+          pnl -= loss;
+          perAsset.push({ symbol: p.symbol, shock, pnl: -loss });
           continue;
         }
       }
