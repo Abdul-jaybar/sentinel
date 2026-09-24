@@ -309,8 +309,8 @@ function CalibrationBlock({
                     borderRadius: 8,
                     fontSize: 12,
                   }}
-                  formatter={(value: number, name: string) => [
-                    `${(value * 100).toFixed(1)}%`,
+                  formatter={(value, name) => [
+                    `${(Number(value) * 100).toFixed(1)}%`,
                     name,
                   ]}
                 />
@@ -348,7 +348,7 @@ function CalibrationBlock({
                     borderRadius: 8,
                     fontSize: 12,
                   }}
-                  formatter={(value: number) => `${(value * 100).toFixed(1)}%`}
+                  formatter={(value) => `${(Number(value) * 100).toFixed(1)}%`}
                 />
                 <Line
                   type="monotone"
