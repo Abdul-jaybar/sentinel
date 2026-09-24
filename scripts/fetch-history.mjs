@@ -2,28 +2,32 @@
 /**
  * Build the bundled reference dataset.
  *
- * Sentinel ships with a synthetic fallback so the app never shows a blank page
- * when a free API rate-limits. Synthetic data is fine for keeping the UI alive;
- * it is NOT fine as the basis for a historical stress scenario or a calibration
- * test, both of which are claims about what really happened.
+ * The app has a synthetic fallback so the page never goes blank when a free
+ * API rate-limits. Synthetic prices are fine for keeping the UI alive. They
+ * are not fine for a historical stress scenario or a calibration test, since
+ * both of those are claims about what really happened.
  *
- * This script fetches real daily closes from CoinGecko and writes them to
- * src/data/reference-history.json, which is committed to the repository. Once
- * that file has real data in it:
+ * This script downloads real daily closes and writes them to
+ * src/data/reference-history.json, which is committed to the repo. Once that
+ * file has real data in it:
  *
- *   - every stress scenario whose window the data covers flips from
- *     `assumed` (a benchmark shock propagated by beta) to `measured`
- *     (the per-asset return that actually occurred), and
- *   - the walk-forward validation runs over years rather than months.
+ *   - every stress scenario whose dates the data covers switches from
+ *     `assumed` (a benchmark shock spread to each coin by its beta) to
+ *     `measured` (the return each coin actually had), and
+ *   - the walk-forward validation runs over years instead of months.
+ *
+ * Sources:
+ *   coinbase   Coinbase Exchange public candles. No key needed, goes back to
+ *              each coin's Coinbase listing date. Default.
+ *   coingecko  Needs COINGECKO_API_KEY. The free CoinGecko tier only serves
+ *              the last 365 days, which is too short for the 2020-2022
+ *              scenarios, so it is only used when a paid key is set.
  *
  * Usage:
- *   npm run fetch:history                    # default coins, from 2020-01-01
+ *   npm run fetch:history
  *   npm run fetch:history -- --days 1500
  *   npm run fetch:history -- --coins bitcoin,ethereum,solana
- *
- * A COINGECKO_API_KEY in the environment is used if present. Without one the
- * free tier applies and the script paces itself accordingly; a full fetch of
- * ten coins takes a couple of minutes.
+ *   npm run fetch:history -- --source coingecko
  */
 
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -33,6 +37,7 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(HERE, "../src/data/reference-history.json");
 
+// [CoinGecko id, ticker]. The ticker doubles as the Coinbase product (BTC-USD).
 const DEFAULT_COINS = [
   ["bitcoin", "BTC"],
   ["ethereum", "ETH"],
@@ -61,6 +66,11 @@ const coins = coinsArg
   : DEFAULT_COINS;
 
 const apiKey = process.env.COINGECKO_API_KEY;
+const source = arg("source", apiKey ? "coingecko" : "coinbase");
+if (source !== "coinbase" && source !== "coingecko") {
+  process.stderr.write(`Unknown --source ${source}. Use coinbase or coingecko.\n`);
+  process.exit(1);
+}
 const base = apiKey
   ? "https://pro-api.coingecko.com/api/v3"
   : "https://api.coingecko.com/api/v3";
@@ -72,7 +82,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Fetch with bounded retry and exponential backoff. 429 is expected on free tier. */
 async function fetchJson(url, attempt = 0) {
-  const headers = apiKey ? { "x-cg-pro-api-key": apiKey } : {};
+  const headers =
+    source === "coingecko" && apiKey
+      ? { "x-cg-pro-api-key": apiKey }
+      : { "User-Agent": "sentinel-fetch-history" };
   const res = await fetch(url, { headers });
 
   if (res.status === 429 || res.status >= 500) {
@@ -88,10 +101,10 @@ async function fetchJson(url, attempt = 0) {
 }
 
 /**
- * CoinGecko returns daily granularity automatically for ranges over 90 days,
- * but the points land on irregular intra-day timestamps. Snapping to UTC
- * midnight and keeping the LAST observation for each day gives a clean daily
- * close series — which is what every downstream estimator assumes it has.
+ * CoinGecko gives daily points for ranges over 90 days, but they land on
+ * uneven times of day. Snapping each point to its UTC day and keeping the last
+ * one gives a clean one-close-per-day series, which is what every estimator
+ * downstream expects.
  */
 function toDailyCloses(prices) {
   const byDay = new Map();
@@ -107,19 +120,61 @@ function toDailyCloses(prices) {
   };
 }
 
+async function fetchCoinGecko(coinId) {
+  const url = `${base}/coins/${coinId}/market_chart/range?vs_currency=usd&from=${from}&to=${now}`;
+  const json = await fetchJson(url);
+  return toDailyCloses(json.prices ?? []);
+}
+
+/**
+ * Coinbase returns at most 300 candles per request, newest first, as
+ * [time, low, high, open, close, volume] with time at the start of the UTC
+ * day. The close of day D is the price at midnight going into D+1, so it is
+ * stamped there. That matches how CoinGecko's daily points are timed, and it
+ * keeps the live feed and this file on the same calendar.
+ */
+async function fetchCoinbase(symbol) {
+  const DAY = 86_400;
+  const byDay = new Map();
+  const today = Math.floor(now / DAY) * DAY;
+
+  for (let start = Math.floor(from / DAY) * DAY; start < today; start += 300 * DAY) {
+    const end = Math.min(start + 299 * DAY, today - DAY);
+    const url =
+      `https://api.exchange.coinbase.com/products/${symbol}-USD/candles` +
+      `?granularity=86400&start=${new Date(start * 1000).toISOString()}` +
+      `&end=${new Date(end * 1000).toISOString()}`;
+    const candles = await fetchJson(url);
+    for (const [time, , , , close] of candles) {
+      // Skip today's candle: it hasn't closed yet.
+      if (time >= today || !Number.isFinite(close) || close <= 0) continue;
+      byDay.set(time / DAY + 1, close);
+    }
+    // Public limit is about 10 requests a second. Stay well under it.
+    await sleep(250);
+  }
+
+  const daysSorted = [...byDay.keys()].sort((a, b) => a - b);
+  return {
+    timestamps: daysSorted.map((d) => d * 86_400_000),
+    prices: daysSorted.map((d) => byDay.get(d)),
+  };
+}
+
 const series = [];
 let failures = 0;
 
 for (const [coinId, symbol] of coins) {
-  const url = `${base}/coins/${coinId}/market_chart/range?vs_currency=usd&from=${from}&to=${now}`;
   process.stdout.write(`${symbol.padEnd(6)} `);
 
   try {
-    const json = await fetchJson(url);
-    const { timestamps, prices } = toDailyCloses(json.prices ?? []);
+    const { timestamps, prices } =
+      source === "coinbase"
+        ? await fetchCoinbase(symbol)
+        : await fetchCoinGecko(coinId);
 
     if (timestamps.length < 60) {
-      process.stdout.write(`skipped — only ${timestamps.length} daily closes\n`);
+      process.stdout.write(`skipped, only ${timestamps.length} daily closes\n`);
       failures += 1;
       continue;
     }
@@ -127,14 +182,15 @@ for (const [coinId, symbol] of coins) {
     series.push({ coinId, symbol, timestamps, prices });
     const first = new Date(timestamps[0]).toISOString().slice(0, 10);
     const last = new Date(timestamps.at(-1)).toISOString().slice(0, 10);
-    process.stdout.write(`${timestamps.length} closes  ${first} → ${last}\n`);
+    process.stdout.write(`${timestamps.length} closes  ${first} to ${last}\n`);
   } catch (err) {
-    process.stdout.write(`FAILED — ${err.message}\n`);
+    process.stdout.write(`FAILED: ${err.message}\n`);
     failures += 1;
   }
 
-  // Free tier is roughly 10-30 calls/minute. Pace rather than get rate-limited.
-  if (!apiKey) await sleep(6000);
+  // CoinGecko's free tier allows roughly 10-30 calls a minute. Pace instead of
+  // getting rate-limited.
+  if (source === "coingecko" && !apiKey) await sleep(6000);
 }
 
 if (series.length === 0) {
@@ -144,7 +200,7 @@ if (series.length === 0) {
 
 const payload = {
   generatedAt: Date.now(),
-  source: "coingecko",
+  source,
   note: "Daily UTC closes. Regenerate with `npm run fetch:history`.",
   series,
 };
@@ -159,7 +215,7 @@ const span = {
 };
 
 process.stdout.write(
-  `\nWrote ${series.length} series (${span.first} → ${span.last}) to src/data/reference-history.json` +
+  `\nWrote ${series.length} series (${span.first} to ${span.last}) to src/data/reference-history.json` +
     `${failures > 0 ? `, ${failures} failed` : ""}\n` +
     `Commit it: the stress scenarios and the validation panel both read from it.\n`,
 );
