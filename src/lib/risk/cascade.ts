@@ -27,7 +27,7 @@ export interface CascadeReport {
   /** Benchmark move that triggers the first liquidation. Null if unlevered. */
   firstLiquidationMove: number | null;
   /**
-   * Largest number of positions liquidated by a single rung — the clustering
+   * Largest number of positions liquidated by a single rung. This is the clustering
    * that a per-position liquidation price simply cannot show you.
    */
   largestSimultaneousLiquidation: number;
@@ -74,7 +74,7 @@ export function liquidationPrice(position: PricedPosition): number | null {
  * fall further than BTC, so they hit their liquidation levels first even when
  * their nominal leverage looks identical.
  *
- * The output is the chart that makes the risk legible — not "your liquidation
+ * The output is the chart that makes the risk legible: not "your liquidation
  * price is $X" per position, but "at -18% you lose two positions at once, and
  * the margin freed up is not enough to hold the rest".
  */

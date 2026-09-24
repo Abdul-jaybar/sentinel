@@ -275,7 +275,7 @@ export default function Home() {
         {/* ---------------- Portfolio ---------------- */}
         <Card
           title="Portfolio"
-          subtitle="Signed quantities — negative is short. Everything recomputes automatically."
+          subtitle="Signed quantities: negative means short. Everything recomputes automatically."
           className="mb-6"
         >
           <PositionEditor
@@ -357,7 +357,7 @@ export default function Home() {
             <div className="grid gap-6 lg:grid-cols-5">
               <Card
                 title="Survival simulation"
-                subtitle={`${report.survival.paths.toLocaleString()} block-bootstrap paths · median, 25–75 and 5–95 percentile equity bands · dashed green line is the probability of not yet having breached the ruin threshold`}
+                subtitle={`${report.survival.paths.toLocaleString()} block-bootstrap paths · median, 25-75 and 5-95 percentile equity bands · dashed green line is the probability of not yet having breached the ruin threshold`}
                 className="lg:col-span-3"
               >
                 <SurvivalChart report={report} />
@@ -409,7 +409,7 @@ export default function Home() {
                     <span className="tnum text-signal-warn">
                       {report.cascade.firstLiquidationMove !== null
                         ? pct(report.cascade.firstLiquidationMove)
-                        : "—"}
+                        : "-"}
                     </span>
                   </span>
                   <span>
@@ -503,7 +503,7 @@ export default function Home() {
                 <Caveat>
                   Expected shortfall splits exactly across positions by Euler
                   decomposition, so each asset is charged with how it actually
-                  behaved on the days the whole book was losing — not with how
+                  behaved on the days the whole book was losing, not with how
                   volatile it is in isolation.
                 </Caveat>
               </Card>
@@ -539,7 +539,7 @@ export default function Home() {
                   Three estimators, shown together on purpose. When the
                   historical figure sits well above the normal-distribution one,
                   the risk lives in a handful of specific days rather than in
-                  day-to-day volatility — and a model that only knows about
+                  day-to-day volatility, and a model that only knows about
                   volatility will under-size it. Cornish-Fisher corrects the
                   normal estimate for skew and fat tails.
                 </Caveat>
@@ -600,7 +600,7 @@ export default function Home() {
                 {report.performance.backcastRuined && (
                   <p className="mt-3 rounded-lg border border-signal-crit/40 bg-signal-crit/10 px-3 py-2 text-[12px] leading-relaxed text-signal-crit">
                     This book would not have survived the lookback window. The
-                    curve stops at the day equity reached zero — an account that
+                    curve stops at the day equity reached zero. An account that
                     is closed cannot participate in the recovery, so nothing is
                     drawn after that point.
                   </p>
@@ -611,7 +611,7 @@ export default function Home() {
                   done&rdquo;, which is the only honest drawdown figure for a
                   portfolio that was just entered. Quantities are held constant
                   and positions are revalued daily, so exposure shrinks as prices
-                  fall — holding <em>dollar</em> exposure constant instead would
+                  fall. Holding <em>dollar</em> exposure constant instead would
                   silently model re-levering into every drawdown.
                 </Caveat>
               </Card>

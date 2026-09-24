@@ -16,7 +16,7 @@ import {
 /**
  * Known-answer tests. Every expected value here was derived independently
  * (closed form, or the numpy/R definition of the same estimator) rather than
- * by running this code and pasting the output — otherwise the test only
+ * by running this code and pasting the output. Otherwise the test only
  * asserts that the bug is reproducible.
  */
 

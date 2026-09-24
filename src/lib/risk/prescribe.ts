@@ -190,7 +190,7 @@ export function prescribeActions(
   // and practically useless: one kind of action usually dominates, so the user
   // is shown "take X to spot" five times with different tickers. A shortlist is
   // only worth reading if the entries are actually different choices, so the
-  // selection enforces variety — at most one action per position, and the best
+  // selection enforces variety: at most one action per position, and the best
   // representative of each distinct action kind is guaranteed a slot before
   // remaining slots are filled by efficiency.
   const meaningful = candidates
@@ -220,7 +220,7 @@ export function prescribeActions(
   }
 
   // Pass 2: fill remaining slots by efficiency, still one action per position,
-  // and no more than two entries of any single kind — beyond that the list
+  // and no more than two entries of any single kind. Beyond that the list
   // stops offering the user a choice and starts repeating itself.
   const kindCounts = new Map<string, number>();
   for (const a of actions) kindCounts.set(a.kind, 1);

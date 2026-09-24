@@ -9,8 +9,8 @@ export interface Scenario {
   benchmarkShock: number;
   /**
    * Multiplier applied to each asset's beta in this scenario. In genuine
-   * risk-off events betas compress upward — everything becomes a leveraged
-   * BTC trade — so a plain historical beta understates the damage.
+   * risk-off events betas compress upward (everything becomes a leveraged
+   * BTC trade), so a plain historical beta understates the damage.
    *
    * Only used when the scenario is `assumed`. A `measured` scenario needs no
    * amplifier because it already contains what each asset actually did.
@@ -24,10 +24,10 @@ export interface Scenario {
   /**
    * How the shock numbers were arrived at.
    *
-   *  "assumed"  — a hand-specified benchmark move propagated to each asset by
+   *  "assumed":  a hand-specified benchmark move propagated to each asset by
    *               its beta. An approximation, and labelled as one everywhere
    *               it is displayed.
-   *  "measured" — the actual per-asset cumulative return realised over the
+   *  "measured": the actual per-asset cumulative return realised over the
    *               window, read out of the bundled reference dataset. No beta
    *               model in the path at all.
    *
@@ -46,7 +46,7 @@ export interface Scenario {
  * Named historical shocks.
  *
  * Using real events rather than "what if everything drops 20%" gives the
- * numbers a reference point a user can reason about — but only if the numbers
+ * numbers a reference point a user can reason about, but only if the numbers
  * are real. Each scenario below carries the calendar window it refers to, and
  * `resolveScenarios` replaces the assumed shock with the returns that actually
  * happened in that window whenever the reference dataset reaches back far
@@ -66,7 +66,7 @@ export const HISTORICAL_SCENARIOS: Scenario[] = [
     window: { start: "2020-03-11", end: "2020-03-13" },
     provenance: "assumed",
     sourceNote:
-      "BitMEX BTC perp traded 7,353 at 10:00 UTC on 12 Mar and bottomed at 3,596 early on 13 Mar — roughly -51% intraday. -37% is the daily-close move, which is what a daily-bar model can honestly claim.",
+      "BitMEX BTC perp traded 7,353 at 10:00 UTC on 12 Mar and bottomed at 3,596 early on 13 Mar, roughly -51% intraday. -37% is the daily-close move, which is what a daily-bar model can honestly claim.",
   },
   {
     id: "may-2021",
@@ -145,7 +145,7 @@ function toDayKey(iso: string): number {
  * assumed beta-propagated shock to the measured per-asset return.
  *
  * The measured path is strictly better in two ways. It removes the beta model
- * from the calculation entirely — no amplifier, no single-factor assumption —
+ * from the calculation entirely (no amplifier, no single-factor assumption),
  * and it captures the thing the beta model gets most wrong, which is that in a
  * real cascade the dispersion across alts is enormous and not a clean multiple
  * of the benchmark.

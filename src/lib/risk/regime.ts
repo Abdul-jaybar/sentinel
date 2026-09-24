@@ -50,14 +50,14 @@ export function rollingVolatility(returns: number[], window = 7): number[] {
  * is systematically under-hedged exactly when it matters, which is why
  * "diversified" leveraged books get liquidated all at once.
  *
- * IMPORTANT — how the split is defined, and why it is not the obvious one:
+ * IMPORTANT: how the split is defined, and why it is not the obvious one:
  *
  * The intuitive approach is to take the benchmark's worst N days and measure
  * correlation there. That is wrong, and wrong in a direction that would make
  * this tool understate its own headline finding. Conditioning on one tail of
  * the factor truncates the factor's variance within the subsample, which
  * mechanically shrinks the systematic share of each asset's variance and
- * biases measured correlation *downward* — the Boyer et al. / Loretan-English
+ * biases measured correlation *downward*. This is the Boyer et al. / Loretan-English
  * critique of conditional correlation. A naive implementation reports that
  * diversification improves in a crash, which is the opposite of what happens.
  *
@@ -65,7 +65,7 @@ export function rollingVolatility(returns: number[], window = 7): number[] {
  * instead: days in the top quartile of trailing 7-day vol are the stressed
  * regime, days in the bottom half are the calm regime. Volatility regimes are
  * two-sided, so they do not truncate the factor distribution, and they line up
- * with what actually drives simultaneous liquidation — sustained high-vol
+ * with what actually drives simultaneous liquidation: sustained high-vol
  * periods rather than one bad print.
  *
  * The classification uses the benchmark only, never the portfolio, so it does
@@ -174,7 +174,7 @@ export function correlationRegimes(
  *
  * Counting positions tells you how many tickers you own. This tells you how
  * many genuinely distinct risks you own. A book of eight highly correlated
- * alts scores close to 1 — which is the honest answer, and the one that
+ * alts scores close to 1, which is the honest answer, and the one that
  * explains why it behaves like a single levered bet in a sell-off.
  */
 export function effectiveBets(corr: number[][]): number {

@@ -35,7 +35,7 @@ export interface PricedPosition extends Position {
   price: number;
   /** quantity * price. Signed. */
   notional: number;
-  /** |quantity * entryPrice| / leverage — capital committed. */
+  /** |quantity * entryPrice| / leverage: capital committed. */
   initialMargin: number;
   /** quantity * (price - entryPrice) */
   unrealizedPnl: number;
@@ -99,7 +99,7 @@ export interface RiskContribution {
   componentES: number;
   /** Share of total ES. Can exceed exposure share (concentration of tail risk). */
   esShare: number;
-  /** d(sigma_p)/d(notional_i) — parametric marginal risk. */
+  /** d(sigma_p)/d(notional_i): parametric marginal risk. */
   marginalVar: number;
   /** Annualised volatility of the asset. */
   volatility: number;
@@ -124,8 +124,8 @@ export interface StressResult {
   /** Shock applied to the benchmark, e.g. -0.37 */
   benchmarkShock: number;
   /**
-   * "measured" — per-asset returns read from the real dataset for this window.
-   * "assumed"  — a hand-specified benchmark move propagated by beta.
+   * "measured": per-asset returns read from the real dataset for this window.
+   * "assumed":  a hand-specified benchmark move propagated by beta.
    * Surfaced in the UI so nobody mistakes one for the other.
    */
   provenance: "assumed" | "measured";
@@ -191,7 +191,7 @@ export interface PerformanceBlock {
 export interface ConcentrationBlock {
   /** Herfindahl-Hirschman Index on |weights|. 1 = single asset. */
   hhi: number;
-  /** 1 / HHI — the number of equally-weighted positions this is equivalent to. */
+  /** 1 / HHI: the number of equally-weighted positions this is equivalent to. */
   effectivePositions: number;
   /** Largest single-asset share of gross exposure. */
   topWeight: number;

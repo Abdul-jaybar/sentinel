@@ -89,7 +89,7 @@ export function ValidationPanel({ positions }: { positions: Position[] }) {
           </p>
           <ul className="ml-4 list-disc space-y-1.5 text-ink-400">
             <li>
-              <span className="text-ink-200">VaR exception testing</span> — walks
+              <span className="text-ink-200">VaR exception testing</span> walks
               the history one day at a time, re-estimating all three VaR models
               from a rolling window, and applies the Kupiec and Christoffersen
               tests to the exceptions. It answers which estimator is calibrated
@@ -97,7 +97,7 @@ export function ValidationPanel({ positions }: { positions: Position[] }) {
               leaving you to pick.
             </li>
             <li>
-              <span className="text-ink-200">Survival calibration</span> — asks
+              <span className="text-ink-200">Survival calibration</span> asks
               whether the headline ruin probability means anything, by comparing
               what the simulation predicted at each historical origin against
               what actually happened over the following window.
@@ -203,7 +203,7 @@ function VarTable({ title, tests }: { title: string; tests: VarExceptionTest[] }
       </div>
       <Caveat>
         Kupiec tests whether the <em>number</em> of exceptions is right.
-        Christoffersen tests whether they are <em>independent</em> — ten
+        Christoffersen tests whether they are <em>independent</em>: ten
         exceptions spread evenly and ten on consecutive days score identically
         on the first test and very differently on the second, and it is the
         clustered case that closes accounts. The joint column is both together.
@@ -382,7 +382,7 @@ function CalibrationBlock({
 
       <Caveat>
         A model that is well calibrated on a sample this size is not proven
-        correct — there is not enough independent evidence for that. A model
+        correct, because there is not enough independent evidence for that. A model
         that is badly calibrated on one <em>is</em> proven wrong. That asymmetry
         is the entire reason this panel exists, and it is why the number to look
         at is the direction of the bias rather than the third decimal place.

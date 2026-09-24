@@ -26,7 +26,7 @@ function headers(): HeadersInit {
  * Circuit breaker.
  *
  * Without this, an upstream outage costs every single request the full
- * retry-and-backoff budget before falling back — so the page gets *slower*
+ * retry-and-backoff budget before falling back, so the page gets *slower*
  * precisely when the data is worst. After a few consecutive failures the
  * breaker opens and requests fail instantly into the fallback path until it
  * times out and lets one probe through.
@@ -140,7 +140,7 @@ export async function getMarkets(limit = 60): Promise<FetchResult<MarketAsset[]>
       return {
         data: stale,
         source: "live",
-        notice: "Serving the last successful price snapshot — upstream is rate-limiting.",
+        notice: "Serving the last successful price snapshot. Upstream is rate-limiting.",
       };
     }
     return {
@@ -196,7 +196,7 @@ export async function getHistory(
   if (results.length === 0) {
     // Three tiers, tried in order of how much they can be trusted: live, then
     // the committed real dataset, then the synthetic generator. Tier 2 only
-    // counts if it covers every requested coin — a matrix half real and half
+    // counts if it covers every requested coin. A matrix half real and half
     // synthetic is worse than one that is honestly all synthetic.
     const committed = datasetHistory(unique, days);
     if (committed) {
@@ -204,7 +204,7 @@ export async function getHistory(
         data: committed,
         source: "fallback",
         notice:
-          "Live price feed unreachable. Showing the committed historical dataset — real closes, but not current ones.",
+          "Live price feed unreachable. Showing the committed historical dataset (real closes, but not current ones).",
       };
     }
 
@@ -212,7 +212,7 @@ export async function getHistory(
       data: fallbackHistory(unique, days),
       source: "fallback",
       notice:
-        "Historical price feed unreachable and no committed dataset present. Risk figures below are computed on a SYNTHETIC reference dataset — the structure is realistic, the prices are not real.",
+        "Historical price feed unreachable and no committed dataset present. Risk figures below are computed on a SYNTHETIC reference dataset. The structure is realistic but the prices are not real.",
     };
   }
 
@@ -229,7 +229,7 @@ export async function getHistory(
     source: anyFailed && missing.length > 0 ? "fallback" : "live",
     notice:
       missing.length > 0
-        ? `No live history for ${missing.join(", ")} — reference data substituted for those assets.`
+        ? `No live history for ${missing.join(", ")}. Reference data substituted for those assets.`
         : undefined,
   };
 }

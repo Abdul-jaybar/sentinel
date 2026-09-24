@@ -47,10 +47,10 @@ export function narrate(report: SentinelReport): Narrative {
           : `This portfolio is carrying modest risk relative to its equity.`;
 
   paragraphs.push(
-    `You are running ${usd(exposure.grossExposure)} of gross exposure against ${usd(exposure.equity)} of equity — ${exposure.leverageRatio.toFixed(2)}x account leverage, ${exposure.netExposure >= 0 ? "net long" : "net short"} ${usd(exposure.netExposure)}. Replayed over the last ${report.lookbackDays} days, the one-day 99% VaR is ${usd(var99.historical)}, or ${pct(var99.pctOfEquity)} of the account; on the days that breach it, the average loss is ${usd(var99.expectedShortfall)}.`,
+    `You are running ${usd(exposure.grossExposure)} of gross exposure against ${usd(exposure.equity)} of equity, ${exposure.leverageRatio.toFixed(2)}x account leverage, ${exposure.netExposure >= 0 ? "net long" : "net short"} ${usd(exposure.netExposure)}. Replayed over the last ${report.lookbackDays} days, the one-day 99% VaR is ${usd(var99.historical)}, or ${pct(var99.pctOfEquity)} of the account; on the days that breach it, the average loss is ${usd(var99.expectedShortfall)}.`,
   );
 
-  // 2. The survival result — the headline product output.
+  // 2. The survival result: the headline product output.
   paragraphs.push(
     `Simulating ${survival.paths.toLocaleString()} bootstrapped ${survival.horizonDays}-day paths from the realised joint return history: ${pct(survival.ruinProbability)} of them lose half the account, ${pct(survival.liquidationProbability)} see at least one position force-closed, and the median path finishes at ${pct(survival.medianTerminalEquityPct)} of where it started. The 5th-percentile path finishes at ${pct(survival.curve[survival.curve.length - 1]?.p05 ?? 1)}.${survival.medianDaysToRuin !== null ? ` Among the paths that do break, the median one breaks on day ${Math.round(survival.medianDaysToRuin)}.` : ""}`,
   );
@@ -58,7 +58,7 @@ export function narrate(report: SentinelReport): Narrative {
   // 3. The regime finding.
   if (regimes.symbols.length >= 2 && regimes.stressedDays > 0) {
     paragraphs.push(
-      `Correlation is not stable across regimes here. On the ${regimes.calmDays} lowest-volatility ${benchmarkSymbol} days your positions averaged ${regimes.avgCalm.toFixed(2)} pairwise correlation; on the ${regimes.stressedDays} highest-volatility days they averaged ${regimes.avgStressed.toFixed(2)}. In effective-bet terms that is ${regimes.effectiveBetsCalm.toFixed(1)} independent bets in calm markets and ${regimes.effectiveBetsStressed.toFixed(1)} in stressed ones${regimes.worstPair ? `, with ${regimes.worstPair.a} and ${regimes.worstPair.b} converging hardest (${regimes.worstPair.calm.toFixed(2)} → ${regimes.worstPair.stressed.toFixed(2)})` : ""}. ${regimes.decay > 0.15 ? "The diversification you are being paid for in quiet markets is not there in the sell-off you are actually sized against." : "That decay is mild — the book keeps most of its diversification when it matters."}`,
+      `Correlation is not stable across regimes here. On the ${regimes.calmDays} lowest-volatility ${benchmarkSymbol} days your positions averaged ${regimes.avgCalm.toFixed(2)} pairwise correlation; on the ${regimes.stressedDays} highest-volatility days they averaged ${regimes.avgStressed.toFixed(2)}. In effective-bet terms that is ${regimes.effectiveBetsCalm.toFixed(1)} independent bets in calm markets and ${regimes.effectiveBetsStressed.toFixed(1)} in stressed ones${regimes.worstPair ? `, with ${regimes.worstPair.a} and ${regimes.worstPair.b} converging hardest (${regimes.worstPair.calm.toFixed(2)} to ${regimes.worstPair.stressed.toFixed(2)})` : ""}. ${regimes.decay > 0.15 ? "The diversification you are being paid for in quiet markets is not there in the sell-off you are actually sized against." : "That decay is mild: the book keeps most of its diversification when it matters."}`,
     );
   }
 
@@ -68,11 +68,11 @@ export function narrate(report: SentinelReport): Narrative {
       .slice(0, 3)
       .map(
         (p) =>
-          `${pct(p.benchmarkMove)} → ${p.symbols.join(" + ")} (equity left: ${pct(p.equityPctAfter)})`,
+          `${pct(p.benchmarkMove)}: ${p.symbols.join(" + ")} (equity left: ${pct(p.equityPctAfter)})`,
       )
       .join("; ");
     paragraphs.push(
-      `Liquidation ladder against ${benchmarkSymbol}: ${clusters}.${cascade.largestSimultaneousLiquidation >= 2 ? ` ${cascade.largestSimultaneousLiquidation} positions die inside the same move, which is the failure mode per-position liquidation prices hide — they are computed one at a time and never show you the cluster.` : ""}${cascade.wipeoutMove !== null ? ` The account is fully gone at ${pct(cascade.wipeoutMove)}.` : ""}`,
+      `Liquidation ladder against ${benchmarkSymbol}: ${clusters}.${cascade.largestSimultaneousLiquidation >= 2 ? ` ${cascade.largestSimultaneousLiquidation} positions die inside the same move, which is the failure mode per-position liquidation prices hide, because they are computed one at a time and never show you the cluster.` : ""}${cascade.wipeoutMove !== null ? ` The account is fully gone at ${pct(cascade.wipeoutMove)}.` : ""}`,
     );
   }
 
@@ -96,7 +96,7 @@ export function narrate(report: SentinelReport): Narrative {
       )
       .join(", ");
     paragraphs.push(
-      `The cheapest meaningful fix is: ${best.label}. ${best.detail} That moves ruin probability from ${pct(prescription.baselineRuinProbability)} to ${pct(best.ruinProbabilityAfter)} — ${pct(best.ruinReduction)} removed${best.exposureClosed > 0 ? ` for ${usd(best.exposureClosed)} of exposure given up` : ` for ${usd(best.capitalRequired)} of additional margin`}.${others ? ` Runners-up: ${others}.` : ""}`,
+      `The cheapest meaningful fix is: ${best.label}. ${best.detail} That moves ruin probability from ${pct(prescription.baselineRuinProbability)} to ${pct(best.ruinProbabilityAfter)}, removing ${pct(best.ruinReduction)}${best.exposureClosed > 0 ? ` for ${usd(best.exposureClosed)} of exposure given up` : ` for ${usd(best.capitalRequired)} of additional margin`}.${others ? ` Runners-up: ${others}.` : ""}`,
     );
   } else {
     paragraphs.push(

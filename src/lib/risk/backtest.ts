@@ -24,12 +24,12 @@ import { simulateSurvival } from "./survival";
  * A risk tool that has never been backtested is a risk tool that has never
  * been contradicted. Two independent checks live here:
  *
- *   1. VaR exception testing — the standard regulatory battery (Kupiec 1995,
+ *   1. VaR exception testing: the standard regulatory battery (Kupiec 1995,
  *      Christoffersen 1998) applied out-of-sample to all three estimators at
  *      once, so the UI can say which one is actually calibrated on *this*
  *      portfolio rather than presenting three numbers and shrugging.
  *
- *   2. Survival calibration — walk-forward reliability of the headline ruin
+ *   2. Survival calibration: walk-forward reliability of the headline ruin
  *      probability, scored with Brier and reported as a reliability curve.
  *
  * Both are run strictly out-of-sample: every forecast at time t is produced
@@ -88,9 +88,9 @@ export interface VarExceptionTest {
   /** Mean size of an exception as a multiple of the VaR that was breached. */
   meanExceedanceRatio: number;
   /**
-   * "pass" — the joint test does not reject at 5%.
-   * "marginal" — rejected at 5% but not at 1%.
-   * "fail" — rejected at 1%.
+   * "pass": the joint test does not reject at 5%.
+   * "marginal": rejected at 5% but not at 1%.
+   * "fail": rejected at 1%.
    */
   verdict: "pass" | "marginal" | "fail";
   /** Which sub-test drove a rejection, in plain language. */
@@ -309,10 +309,10 @@ export function backtestVar(
         exceptionRate > alpha
           ? `Too many exceptions (${(exceptionRate * 100).toFixed(1)}% vs ${(
               alpha * 100
-            ).toFixed(1)}% expected) — this estimator under-states the risk.`
+            ).toFixed(1)}% expected). This estimator understates the risk.`
           : `Too few exceptions (${(exceptionRate * 100).toFixed(1)}% vs ${(
               alpha * 100
-            ).toFixed(1)}% expected) — over-conservative, capital is being wasted.`;
+            ).toFixed(1)}% expected). It is too conservative, so capital is being wasted.`;
     } else if (independence.pValue < 0.05 && kupiec.pValue >= 0.05) {
       diagnosis = `Right number of exceptions, wrong shape: they cluster (longest run ${maxRun} days). The model reacts to volatility too slowly.`;
     } else {
@@ -400,7 +400,7 @@ export interface SurvivalCalibration {
  *
  *  - In-sample resampling. The bootstrap draws from the training window, and
  *    the realised path is the window immediately after it. When volatility
- *    regime-shifts across that boundary the model will look badly calibrated —
+ *    regime-shifts across that boundary the model will look badly calibrated,
  *    which is a true statement about the model, not a bug in the test.
  *
  * A model that is well calibrated on a 300-day crypto sample is not proven
@@ -540,8 +540,8 @@ export function calibrateSurvival(
  * Replay the *actual* returns from `origin` forward and report whether the book
  * would really have breached the ruin threshold.
  *
- * This mirrors the simulator's liquidation logic exactly — same maintenance
- * margin, same absorbing state on a closed position — because a calibration
+ * This mirrors the simulator's liquidation logic exactly (same maintenance
+ * margin, same absorbing state on a closed position) because a calibration
  * test where forecast and outcome use different accounting measures nothing.
  */
 export function realisedRuin(

@@ -18,7 +18,7 @@ const usd = (x: number) =>
 /**
  * Rules are ordered by how much they should change behaviour, not by how
  * alarming they sound. Every alert states the measured value and the threshold
- * it crossed, so it can be argued with rather than merely obeyed — a risk
+ * it crossed, so it can be argued with rather than merely obeyed. A risk
  * warning that cannot be checked gets ignored after the second time.
  */
 export function buildAlerts(input: {
@@ -78,8 +78,8 @@ export function buildAlerts(input: {
       id: "corr-decay",
       rule: "regime.decay",
       severity: regimes.decay >= 0.3 ? "critical" : "warning",
-      title: `Diversification collapses in stress: correlation goes ${regimes.avgCalm.toFixed(2)} → ${regimes.avgStressed.toFixed(2)}`,
-      detail: `On the benchmark's ${regimes.calmDays} lowest-volatility days your positions averaged ${regimes.avgCalm.toFixed(2)} pairwise correlation. On its ${regimes.stressedDays} highest-volatility days they averaged ${regimes.avgStressed.toFixed(2)}. Effective independent bets fall from ${regimes.effectiveBetsCalm.toFixed(1)} to ${regimes.effectiveBetsStressed.toFixed(1)}${regimes.worstPair ? `, with ${regimes.worstPair.a}/${regimes.worstPair.b} moving ${regimes.worstPair.calm.toFixed(2)} → ${regimes.worstPair.stressed.toFixed(2)}` : ""}. Position sizing based on the blended number is too large.`,
+      title: `Diversification collapses in stress: correlation goes ${regimes.avgCalm.toFixed(2)} to ${regimes.avgStressed.toFixed(2)}`,
+      detail: `On the benchmark's ${regimes.calmDays} lowest-volatility days your positions averaged ${regimes.avgCalm.toFixed(2)} pairwise correlation. On its ${regimes.stressedDays} highest-volatility days they averaged ${regimes.avgStressed.toFixed(2)}. Effective independent bets fall from ${regimes.effectiveBetsCalm.toFixed(1)} to ${regimes.effectiveBetsStressed.toFixed(1)}${regimes.worstPair ? `, with ${regimes.worstPair.a}/${regimes.worstPair.b} moving ${regimes.worstPair.calm.toFixed(2)} to ${regimes.worstPair.stressed.toFixed(2)}` : ""}. Position sizing based on the blended number is too large.`,
       value: regimes.decay,
       threshold: 0.15,
     });
@@ -143,7 +143,7 @@ export function buildAlerts(input: {
       rule: "var.equity-share",
       severity: var99.pctOfEquity >= 0.2 ? "critical" : "warning",
       title: `1-day 99% VaR is ${pct(var99.pctOfEquity)} of equity`,
-      detail: `On roughly one day in a hundred you should expect to lose at least ${usd(var99.historical)}. Expected shortfall — the average loss on those days — is ${usd(var99.expectedShortfall)}.`,
+      detail: `On roughly one day in a hundred you should expect to lose at least ${usd(var99.historical)}. Expected shortfall, the average loss on those days, is ${usd(var99.expectedShortfall)}.`,
       value: var99.pctOfEquity,
       threshold: 0.1,
     });
@@ -157,7 +157,7 @@ export function buildAlerts(input: {
       rule: "var.model-gap",
       severity: "info",
       title: `Realised tail is ${tailGap.toFixed(2)}x the normal-distribution estimate`,
-      detail: `Historical VaR (${usd(var99.historical)}) sits well above the variance-covariance estimate (${usd(var99.parametric)}). Volatility alone is understating this book — the risk lives in a few specific days, not in the day-to-day noise.`,
+      detail: `Historical VaR (${usd(var99.historical)}) sits well above the variance-covariance estimate (${usd(var99.parametric)}). Volatility alone is understating this book. The risk lives in a few specific days, not in the day-to-day noise.`,
       value: tailGap,
       threshold: 1.35,
     });
@@ -170,7 +170,7 @@ export function buildAlerts(input: {
       rule: "concentration.hhi",
       severity: "warning",
       title: `${concentration.topSymbol} is ${pct(concentration.topWeight)} of gross exposure`,
-      detail: `HHI of ${concentration.hhi.toFixed(2)} — equivalent to ${concentration.effectivePositions.toFixed(1)} equally-weighted positions.`,
+      detail: `HHI of ${concentration.hhi.toFixed(2)}, equivalent to ${concentration.effectivePositions.toFixed(1)} equally-weighted positions.`,
       value: concentration.topWeight,
       threshold: 0.5,
     });

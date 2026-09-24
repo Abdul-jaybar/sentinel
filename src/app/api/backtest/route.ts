@@ -17,7 +17,7 @@ export const maxDuration = 120;
  * Split from /api/risk on purpose. The dashboard should stay fast, and this is
  * the expensive call: a full Monte Carlo at every walk-forward origin plus a
  * rolling re-estimation of three VaR models. Separating them also makes the
- * honest thing easy — the validation is something you ask for and read, not a
+ * honest thing easy: the validation is something you ask for and read, not a
  * number that flashes past in a summary bar.
  */
 export async function POST(request: Request) {

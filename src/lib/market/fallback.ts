@@ -9,9 +9,9 @@ import { mulberry32 } from "@/lib/risk/survival";
  * uses it says so. It exists for one reason: a risk tool that shows a blank
  * page when a free API rate-limits is useless in exactly the moment someone
  * opened it in a hurry. The generator is calibrated to plausible crypto
- * parameters — annualised vols in the 45–110% range, a correlation block
+ * parameters (annualised vols in the 45-110% range, a correlation block
  * structure with majors tighter than alts, and an injected stress regime where
- * correlations rise and returns go negative together — so the engine has
+ * correlations rise and returns go negative together) so the engine has
  * realistic structure to operate on.
  *
  * It is not a substitute for live prices and is never presented as one.
@@ -87,7 +87,7 @@ export function fallbackMarkets(): MarketAsset[] {
  * beta, plus idiosyncratic noise. That reproduces the block correlation you
  * actually see in crypto without hand-specifying an n-by-n matrix. A stress
  * window is injected in the middle third, where the common factor is negative
- * and idiosyncratic variance is suppressed — which is what "correlations go to
+ * and idiosyncratic variance is suppressed. That is what "correlations go to
  * one" looks like mechanically.
  */
 export function fallbackHistory(coinIds: string[], days = 90): PriceSeries[] {

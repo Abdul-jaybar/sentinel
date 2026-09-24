@@ -247,7 +247,7 @@ export function PositionEditor({
           >
             {filtered.map((m) => (
               <option key={m.coinId} value={m.coinId}>
-                {m.symbol} — {m.name} ({fmtPrice(m.price)})
+                {m.symbol} · {m.name} ({fmtPrice(m.price)})
               </option>
             ))}
           </select>

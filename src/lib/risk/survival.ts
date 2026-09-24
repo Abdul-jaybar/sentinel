@@ -66,14 +66,14 @@ export function seedFromPositions(positions: PricedPosition[]): number {
  * Why block bootstrap rather than a Gaussian / Cholesky simulation:
  *
  *  1. It resamples whole *days* across all assets at once, so the joint
- *     dependence structure is preserved exactly as it was realised — including
+ *     dependence structure is preserved exactly as it was realised, including
  *     the tail dependence that a correlation matrix throws away.
  *  2. Sampling contiguous blocks preserves volatility clustering. Crypto
  *     drawdowns are consecutive bad days, not independent draws, and it is the
  *     consecutive part that liquidates leveraged accounts.
  *  3. It cannot produce returns the market has never produced, which keeps the
  *     output defensible. The cost is that it cannot produce genuinely
- *     unprecedented ones either — stated plainly in the UI.
+ *     unprecedented ones either. The UI says so.
  *
  * Block lengths are geometric with mean `blockLength` (Politis & Romano's
  * stationary bootstrap), which avoids the edge artefacts of fixed blocks.

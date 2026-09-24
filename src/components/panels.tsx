@@ -21,8 +21,8 @@ export function AlertFeed({ report }: { report: SentinelReport }) {
   if (report.alerts.length === 0) {
     return (
       <p className="text-[13px] text-ink-400">
-        No rules tripped. That is a statement about thresholds, not a guarantee
-        — the metrics below are still worth reading.
+        No rules tripped. That is a statement about thresholds, not a guarantee,
+        and the metrics below are still worth reading.
       </p>
     );
   }
@@ -77,7 +77,7 @@ export function PrescriptionPanel({ report }: { report: SentinelReport }) {
         <p className="text-[13px] leading-relaxed text-ink-300">
           No single action moves ruin probability by more than half a
           percentage point. That usually means risk is spread evenly across the
-          book rather than concentrated in one position — the lever is overall
+          book rather than concentrated in one position. The lever is overall
           size, not reshuffling between assets.
         </p>
         <Caveat>
@@ -159,7 +159,7 @@ export function PrescriptionPanel({ report }: { report: SentinelReport }) {
       ))}
       <Caveat>
         Ranked by ruin-probability removed per unit of cost, not by raw size of
-        the reduction — closing everything always helps most and is never the
+        the reduction: closing everything always helps most and is never the
         useful answer. Each candidate is re-simulated over{" "}
         {prescription.evaluationPaths.toLocaleString()} paths against the same
         bootstrap draws as the baseline. This is model output about the
@@ -241,7 +241,7 @@ export function StressTable({ report }: { report: SentinelReport }) {
               </td>
               <td className="py-3 pl-3">
                 {s.liquidated.length === 0 ? (
-                  <span className="text-ink-500">—</span>
+                  <span className="text-ink-500">-</span>
                 ) : (
                   <span className="text-signal-crit">
                     {s.liquidated.join(", ")}
@@ -254,7 +254,7 @@ export function StressTable({ report }: { report: SentinelReport }) {
       </table>
       <Caveat>
         A <strong>measured</strong> scenario uses the return each asset actually
-        realised over that calendar window — no beta model in the path at all. An{" "}
+        realised over that calendar window, with no beta model in the path at all. An{" "}
         <strong>assumed</strong> scenario has no data covering the window for
         every held asset, so it falls back to shocking each asset by its own beta
         to {report.benchmarkSymbol}, amplified because betas compress upward in
@@ -333,7 +333,7 @@ export function LiquidationTable({ report }: { report: SentinelReport }) {
       </table>
       <Caveat>
         Touch probability uses the reflection principle for driftless geometric
-        Brownian motion — the chance of trading through the level at any point
+        Brownian motion: the chance of trading through the level at any point
         in the window, not of closing below it. Funding costs and venue-specific
         margin tiers are not modelled.
       </Caveat>
@@ -426,8 +426,8 @@ export function NarrativePanel({
           </div>
         )}
         <Caveat>
-          The assessment above is generated deterministically from the report —
-          identical portfolios always produce identical wording, and every
+          The assessment above is generated deterministically from the report.
+          Identical portfolios always produce identical wording, and every
           figure traces to a field in the model output. The follow-up box is the
           only part that calls a language model, and it is optional.
         </Caveat>

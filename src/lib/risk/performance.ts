@@ -27,7 +27,7 @@ import {
  * 1. Constant notional is not buy-and-hold. The first version walked equity as
  *    `equity += sum_i notional_i * r_{i,t}` with the notionals fixed at today's
  *    values. Holding dollar exposure constant while equity falls is not a
- *    passive book — it is a strategy that re-levers into every drawdown, and it
+ *    passive book. It is a strategy that re-levers into every drawdown, and it
  *    can drive an *unlevered spot portfolio* to zero, which is impossible. A
  *    real book holds constant QUANTITY and lets exposure shrink with price. So
  *    this now compounds prices along the path and revalues the positions, which
@@ -133,8 +133,8 @@ export function computePerformance(
   //   DD = sqrt( (1/N) * sum_t min(r_t, 0)^2 )
   //
   // The sum runs over downside days but the average is taken over ALL N
-  // observations. Dividing by the count of downside days instead — which is
-  // the easy mistake, and what this used to do — inflates the denominator of
+  // observations. Dividing by the count of downside days instead (the
+  // easy mistake, and what this used to do) inflates the denominator of
   // Sortino and quietly reports a worse ratio than the definition gives.
   const n0 = portfolioReturns.length;
   const downsideDev =
@@ -190,7 +190,7 @@ export function computeConcentration(
 
   const hhi = weights.reduce((acc, w) => acc + w * w, 0);
   let topWeight = 0;
-  let topSymbol = "—";
+  let topSymbol = "-";
   positions.forEach((p, i) => {
     if (weights[i] > topWeight) {
       topWeight = weights[i];
@@ -227,7 +227,7 @@ export function computeConcentration(
  *   P( min_{t<=T} S_t <= B )  =  2 * Phi( ln(B/S) / (sigma * sqrt(T)) )
  *
  * "Touched at any point in the next 30 days" is the number that matters for a
- * liquidation, because being briefly wrong is enough to be closed out — an
+ * liquidation, because being briefly wrong is enough to be closed out. An
  * end-of-period probability materially understates the danger.
  */
 export function computeLiquidationRisk(

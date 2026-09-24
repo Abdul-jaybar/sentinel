@@ -20,7 +20,7 @@ Rules:
 /**
  * Optional conversational layer over the deterministic narrator.
  *
- * The app is fully functional without an API key — the narrator in
+ * The app is fully functional without an API key. The narrator in
  * lib/risk/narrate.ts covers the explanation path deterministically. This
  * endpoint only adds follow-up questions, and it degrades to a clear message
  * rather than a broken UI when no key is configured.

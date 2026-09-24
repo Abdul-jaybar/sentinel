@@ -110,7 +110,7 @@ describe("Sortino downside deviation", () => {
   it("averages squared downside over ALL observations, not just losing days", () => {
     // Ten days: one -10% day, nine flat. LPM(2) about zero is
     //   sqrt( 0.10^2 / 10 ) = 0.0316...
-    // Dividing by the single downside day instead would give 0.10 — a
+    // Dividing by the single downside day instead would give 0.10: a
     // denominator 3.16x too large, and a Sortino ratio 3.16x too small.
     const returns = [-0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     const perf = computePerformance(returns, 1, returns, returns, []);

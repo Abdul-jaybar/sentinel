@@ -15,7 +15,7 @@ import { mulberry32 } from "@/lib/risk/survival";
  * Known-answer tests.
  *
  * Every expected value below comes from a published table or a closed form
- * derived by hand — never from running this code and pasting the output, which
+ * derived by hand, never from running this code and pasting the output, which
  * would only prove the code is consistent with itself.
  */
 
@@ -73,7 +73,7 @@ describe("Kupiec proportion-of-failures test", () => {
     expect(kupiecTest(13, 250, 0.05).pValue).toBeGreaterThan(0.05);
   });
 
-  it("is symmetric in direction — too few exceptions also rejects", () => {
+  it("is symmetric in direction: too few exceptions also rejects", () => {
     expect(kupiecTest(1, 500, 0.05).pValue).toBeLessThan(0.01);
   });
 
@@ -239,7 +239,7 @@ describe("realised ruin", () => {
     expect(realisedRuin([position()], returns, 0, 30, 0.5)).toBe(true);
   });
 
-  it("respects the origin — a later window can differ from an earlier one", () => {
+  it("respects the origin: a later window can differ from an earlier one", () => {
     const returns = [[...new Array(30).fill(0.0), ...new Array(30).fill(-0.06)]];
     expect(realisedRuin([position()], returns, 0, 10, 0.5)).toBe(false);
     expect(realisedRuin([position()], returns, 30, 30, 0.5)).toBe(true);

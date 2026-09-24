@@ -66,7 +66,7 @@ function TooltipShell({
 /* ------------------------------------------------------------------ */
 
 /**
- * The headline chart. The shaded bands are the 5–95 and 25–75 percentile
+ * The headline chart. The shaded bands are the 5-95 and 25-75 percentile
  * ranges of simulated account equity; the solid line is the median path; the
  * dashed line is the probability the account has NOT yet breached the ruin
  * threshold by that day.
@@ -83,7 +83,7 @@ export function SurvivalChart({ report }: { report: SentinelReport }) {
     p50: c.p50,
     p75: c.p75,
     p95: c.p95,
-    // Stacked band helpers — recharts stacks by value, so we pass widths.
+    // Stacked band helpers. Recharts stacks by value, so we pass widths.
     band90: c.p95 - c.p05,
     band50: c.p75 - c.p25,
     survival: c.survival,
@@ -141,7 +141,7 @@ export function SurvivalChart({ report }: { report: SentinelReport }) {
               );
             }}
           />
-          {/* 5–95 band drawn as a stacked pair so the lower edge floats. */}
+          {/* 5-95 band drawn as a stacked pair so the lower edge floats. */}
           <Area
             type="monotone"
             dataKey="p05"
@@ -537,7 +537,7 @@ function Heatmap({
                       style={{ background: correlationColor(v) }}
                       title={`${rowSymbol} / ${colSymbol}: ${v.toFixed(3)}`}
                     >
-                      {i === j ? "—" : v.toFixed(2)}
+                      {i === j ? "-" : v.toFixed(2)}
                     </td>
                   );
                 })}

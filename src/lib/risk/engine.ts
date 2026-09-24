@@ -55,7 +55,7 @@ export interface EngineOptions {
   horizonDays?: number;
   ruinThreshold?: number;
   paths?: number;
-  /** Skip the (expensive) prescription search — used by the preview endpoint. */
+  /** Skip the (expensive) prescription search. Used by the preview endpoint. */
   skipPrescription?: boolean;
   /**
    * Run the out-of-sample validation battery. Off by default: it re-simulates
@@ -272,7 +272,7 @@ export function buildReport(
     dataSource,
     dataNotice:
       dataSource === "fallback"
-        ? "Live market feed unavailable — showing a bundled reference dataset. Risk figures are computed the same way but the prices are not current."
+        ? "Live market feed unavailable. Showing a bundled reference dataset. Risk figures are computed the same way but the prices are not current."
         : undefined,
     lookbackDays: aligned.timestamps.length,
     benchmarkSymbol,

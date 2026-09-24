@@ -53,7 +53,7 @@ export const PRESETS: Preset[] = [
     id: "spot-hodl",
     name: "Unlevered spot",
     thesis:
-      "No leverage anywhere. Nothing can be liquidated — but the drawdown and expected-shortfall numbers still have plenty to say.",
+      "No leverage anywhere. Nothing can be liquidated, but the drawdown and expected-shortfall numbers still have plenty to say.",
     positions: [
       { coinId: "bitcoin", symbol: "BTC", quantity: 0.4, entryPrice: 61000, leverage: 1, venue: "spot" },
       { coinId: "ethereum", symbol: "ETH", quantity: 6, entryPrice: 2950, leverage: 1, venue: "spot" },

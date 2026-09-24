@@ -33,7 +33,7 @@ export function correlationMatrix(rows: number[][]): number[][] {
  * needs the eigenvalue spectrum of the correlation matrix.
  *
  * Jacobi is O(n^3) per sweep and overkill for large n, but portfolios here are
- * a handful of assets and it is numerically bulletproof for symmetric input —
+ * a handful of assets and it is numerically bulletproof for symmetric input,
  * which matters more than speed at this size.
  */
 export function symmetricEigenvalues(input: number[][]): number[] {
@@ -86,7 +86,7 @@ export function symmetricEigenvalues(input: number[][]): number[] {
  * Sample correlation matrices from short windows are frequently not positive
  * definite (especially with more assets than observations). Rather than
  * failing, we progressively shrink toward the identity until the
- * decomposition succeeds — standard practice in risk systems, and the shrink
+ * decomposition succeeds (standard practice in risk systems), and the shrink
  * factor is reported so the UI can be honest about it.
  */
 export function choleskyWithShrinkage(matrix: number[][]): {

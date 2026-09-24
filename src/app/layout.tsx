@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Sentinel — survival analysis for leveraged crypto portfolios",
+  title: "Sentinel: survival analysis for leveraged crypto portfolios",
   description:
     "Sentinel measures the risk that actually liquidates leveraged crypto books: correlated simultaneous liquidation. Regime-split correlations, block-bootstrap survival simulation, a liquidation cascade map, and a ranked de-risking prescription.",
   openGraph: {

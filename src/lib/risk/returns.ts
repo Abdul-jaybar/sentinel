@@ -32,8 +32,8 @@ export function logReturns(prices: number[]): number[] {
  *
  * Upstream feeds return slightly different timestamps per asset (different
  * listing dates, occasional gaps). Computing a covariance matrix across
- * misaligned series silently produces garbage — the classic bug in
- * home-made risk tools — so we intersect on calendar day and forward-fill
+ * misaligned series silently produces garbage (the classic bug in
+ * home-made risk tools), so we intersect on calendar day and forward-fill
  * at most one missing day before dropping an asset.
  */
 export function alignSeries(series: PriceSeries[]): {

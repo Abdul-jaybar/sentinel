@@ -7,19 +7,19 @@ import referenceHistory from "@/data/reference-history.json";
  * There are three possible sources of price history, in strict order of
  * preference, and the difference between them is visible everywhere:
  *
- *   1. The live CoinGecko feed — current, but rate-limited and occasionally
+ *   1. The live CoinGecko feed. Current, but rate-limited and occasionally
  *      down, and it only reaches back as far as the free tier allows.
- *   2. THIS FILE — real historical closes, committed so the app has a long,
+ *   2. This file. Real historical closes, committed so the app has a long,
  *      reproducible sample offline. This is what makes the historical stress
  *      scenarios `measured` rather than `assumed`, and what gives the
  *      walk-forward validation enough runway to say anything.
- *   3. The synthetic generator in `fallback.ts` — plausible structure, no
+ *   3. The synthetic generator in `fallback.ts`. Plausible structure, no
  *      claim to being real, labelled as synthetic on every surface.
  *
- * The file ships empty. `npm run fetch:history` populates it. An empty dataset
- * is not an error state: the app degrades to (3) and says so, which is the
- * whole point of keeping these three tiers distinct instead of silently
- * blending them.
+ * `npm run fetch:history` rebuilds it. If the file is empty the app is still
+ * fine: it drops to (3) and says so. Keeping the three tiers separate, rather
+ * than quietly blending them, is what lets the UI always say which one it is
+ * showing.
  */
 
 interface RawDataset {
@@ -116,7 +116,7 @@ export function datasetHistory(
 }
 
 /**
- * Full untrimmed series, for the stress scenarios — they need to reach back to
+ * Full untrimmed series, for the stress scenarios. They need to reach back to
  * 2020, which is far outside any window the dashboard itself displays.
  */
 export function datasetFullHistory(coinIds: string[]): PriceSeries[] {
