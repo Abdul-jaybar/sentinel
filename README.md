@@ -1,117 +1,113 @@
 # Sentinel
 
-**Survival analysis for leveraged crypto portfolios.**
+[![CI](https://github.com/Abdul-jaybar/sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/Abdul-jaybar/sentinel/actions/workflows/ci.yml)
 
-Leveraged books rarely die because one position moved. They die because six positions that looked independent moved together and hit their maintenance levels inside the same hour.
+A risk tool for leveraged crypto portfolios. You enter your positions, and it tells you how likely the account is to survive the next 30 days, which positions would get liquidated together, and which single trade would cut that risk the most for the least cost.
 
-Every consumer crypto portfolio tool answers *"what is my portfolio worth?"*. Sentinel answers a different and much more useful question: **"what is the probability this account still exists in 30 days, and what is the cheapest single trade that improves it?"**
-
-And then it does the thing almost no risk tool does: it [marks its own homework](#9-does-the-model-actually-work) out of sample, and shows you the score even when the score is bad.
+It also backtests itself on real price history and shows you the results, including where the model does badly.
 
 ![Survival simulation and the generated risk assessment](docs/survival-and-assessment.png)
 
----
+## Why I built it
 
-## The thesis
+Most portfolio trackers tell you what your holdings are worth. If you trade with leverage, that isn't the question that matters. The question is whether the account will still be open next month.
 
-Retail leveraged traders hold six assets and believe they hold six bets. They don't. In a drawdown, alt correlations converge toward 1, betas compress upward, and positions that each looked survivable in isolation breach maintenance margin simultaneously. The tooling available to them actively hides this:
+Leveraged accounts usually don't blow up because one coin fell. They blow up because several coins that normally move somewhat independently all fell together, and every position hit its liquidation level on the same day. Six alt positions can look like six separate bets in a calm market and behave like one big bet in a crash.
 
-| What existing tools show | Why it misleads |
+The usual tools hide this:
+
+| What most tools show | What it misses |
 |---|---|
-| Allocation pie chart | Says nothing about how the slices co-move |
-| Per-position liquidation price | Computed one position at a time; never shows the cluster |
-| A single blended correlation matrix | An average of two very different regimes |
-| Portfolio volatility | Understates books whose risk lives in a few specific days |
-| "You are over-exposed" | True but useless; offers no ranked way to fix it |
+| An allocation pie chart | Nothing about whether the slices move together |
+| A liquidation price per position | Each one is calculated alone, so you never see several hitting at once |
+| One correlation matrix | Averages calm and stressed markets, which behave very differently |
+| Portfolio volatility | Understates risk that is concentrated in a few bad days |
+| "You are over-exposed" | Doesn't tell you what to do about it |
 
-Sentinel measures the failure mode directly and then prescribes against it.
+Sentinel measures that failure mode directly and then suggests fixes.
 
----
+## What it calculates
 
-## What it actually computes
+### 1. Correlation in calm vs. stressed markets
 
-### 1. Regime-split correlation
+Correlation is measured separately for calm days and stressed days, and the difference is shown as a headline number. This is the "diversification disappears when you need it" effect, measured on your actual positions.
 
-Correlation is measured **separately** in a calm regime and a stressed regime, and the gap between them (the *diversification decay*) is reported as a headline number.
-
-The obvious implementation, take the benchmark's worst N days and measure correlation there, **is wrong**, and wrong in the direction that would make this tool understate its own central claim. Conditioning on one tail of the factor truncates the factor's variance within the subsample, which mechanically shrinks the systematic share of each asset's variance and biases measured correlation *downward*. This is the Boyer et al. / Loretan–English critique of conditional correlation. A naive implementation reports that diversification **improves** in a crash.
+The obvious way to do this (take BTC's worst days and measure correlation on those) gives the wrong answer. Picking days by how far BTC fell squeezes the range of BTC's moves in that sample, which makes correlations look *lower* than they really are. That approach would report that diversification gets better in a crash. (This is a known problem in the literature, see Boyer et al. and Loretan and English.)
 
 ![Correlation regimes and the findings feed](docs/regimes-and-findings.png)
 
-Sentinel instead defines regimes by the benchmark's **rolling realised volatility**: days in the top quartile of trailing 7-day volatility form the stressed regime, days in the bottom half form the calm regime, and the band between is deliberately left out so the two samples stay distinct. Volatility regimes are two-sided, so they do not truncate the factor distribution, and they correspond to what actually causes simultaneous liquidation, which is sustained high-volatility periods rather than one bad print.
+Sentinel splits days by BTC's recent volatility instead. Days in the top quarter of 7-day volatility count as stressed, days in the bottom half count as calm, and the days in between are left out so the two groups stay clearly separate. High-volatility stretches are also what actually causes positions to be liquidated together.
 
-### 2. Effective number of independent bets
+### 2. How many independent bets you really have
 
-The exponential Shannon entropy of the correlation matrix's normalised eigenvalue spectrum:
+Owning six coins doesn't mean you have six independent bets. Sentinel estimates the real number from the eigenvalues of the correlation matrix:
 
 ```
 p_k    = λ_k / Σλ
 N_eff  = exp( −Σ p_k · ln p_k )
 ```
 
-Counting positions tells you how many tickers you own. This tells you how many genuinely distinct risks you own. A typical "diversified" six-asset alt book scores around 2.7 in calm markets and **collapses below 1.3** under stress, which is the honest explanation for why it behaves like a single levered directional trade in a sell-off.
+A typical six-coin alt portfolio scores around 2.7 in calm markets and drops below 1.3 in stressed ones. In other words, in a sell-off it acts like one leveraged bet on the market.
 
-Eigenvalues come from a cyclic Jacobi rotation solver (`src/lib/risk/matrix.ts`). It is O(n³) per sweep and overkill at this size, but numerically bulletproof for symmetric input, which matters more than speed here.
+The eigenvalues come from a Jacobi solver written from scratch in `src/lib/risk/matrix.ts`. It is slower than it needs to be for large matrices, but it is very stable, and portfolios here only have a handful of assets.
 
-### 3. Block-bootstrap survival simulation
+### 3. Survival simulation
 
-The headline output. Thousands of forward paths, each walked day by day with full position-level liquidation logic, producing:
+This is the main output. Sentinel simulates thousands of possible next 30 days, day by day, and applies the liquidation rules to every position along the way. From that it reports:
 
-- probability of losing a chosen fraction of the account within the horizon
-- probability at least one position is force-closed
-- probability the entire book is force-closed
-- median days-to-ruin among paths that break
-- the full percentile fan of account equity over time
+- the chance of losing a chosen share of the account
+- the chance at least one position gets liquidated
+- the chance the whole account gets liquidated
+- the median number of days until that happens, on the paths where it does
+- a fan chart of how the account balance could evolve
 
-Paths are generated by **stationary block bootstrap** (Politis & Romano), resampling contiguous blocks of real trading days across *all assets at once*. Block lengths are geometric with mean 5.
+The paths are built by resampling real historical days in chunks (a stationary block bootstrap, Politis and Romano), with all coins taken from the same days. Chunks average 5 days long.
 
-Why this rather than a Gaussian / Cholesky simulation:
+I chose this over the usual approach of drawing random returns from a normal distribution because:
 
-1. Resampling whole days preserves the joint dependence structure exactly as it was realised, **including tail dependence**, which a correlation matrix throws away by construction.
-2. Contiguous blocks preserve volatility clustering. Crypto drawdowns are consecutive bad days, and it is the *consecutive* part that liquidates accounts.
-3. It cannot produce a return the market has never produced, which keeps the output defensible.
+1. Using real days keeps the way the coins actually moved together, including in the extremes. A correlation matrix loses that.
+2. Using chunks of consecutive days keeps losing streaks intact. Accounts get liquidated by several bad days in a row, not by one.
+3. It never invents a move that hasn't happened.
 
-The honest cost of (3): it cannot produce genuinely unprecedented moves either. The left tail is a **floor** on the risk, not a ceiling. The UI says so, next to the chart.
+The downside of point 3 is that it can't produce a crash bigger than the worst one in the data. So the risk it reports is a minimum, not a maximum, and the UI says so next to the chart.
 
-The simulation is seeded from a hash of the portfolio, so identical input always produces identical output. A risk number that jitters between refreshes is a risk number nobody trusts.
+The random seed comes from the portfolio itself, so the same portfolio always gives the same numbers. A risk number that changes every time you refresh is hard to trust.
 
-### 4. Liquidation cascade map
+### 4. Liquidation ladder
 
-The benchmark is walked down in 0.5% steps to −60%. At each rung every asset moves by **its own beta**, not by the same percentage, because that is how a sell-off actually propagates. High-beta alts reach their liquidation levels first even at identical nominal leverage.
+This walks BTC down in 0.5% steps to −60%. At each step, every coin moves by its own beta to BTC rather than by the same amount, because high-beta alts fall further in a sell-off. That means they hit liquidation first, even at the same leverage.
 
-The output is the chart that makes the risk legible: not *"your liquidation price is $X"* per position, but *"at −18% you lose two positions at once, and the margin that frees up is not enough to hold the rest."*
+Instead of "your liquidation price is $X" for each position, you get something like "at −18%, two positions get liquidated at once, and the margin that frees up isn't enough to save the rest."
 
-### 5. Expected shortfall attribution
+### 5. Which positions cause the losses
 
-ES is coherent and homogeneous of degree 1 in position size, so it decomposes **exactly** across positions by Euler's theorem:
+Expected shortfall (the average loss on the worst days) is split exactly across positions:
 
 ```
 ES = Σ_i notional_i · ( −E[ r_i | portfolio in tail ] )
 ```
 
-Each asset is charged with how it behaved specifically on the days the whole book was bleeding, not with how volatile it is in isolation. The UI plots share-of-exposure against share-of-tail-loss, and the gap between the two bars is the actionable number. (Verified in the test suite: the components sum to the total ES.)
+Each position is charged for how it behaved on the days the whole portfolio was losing, not for how volatile it is on its own. The UI shows each position's share of exposure next to its share of tail losses, and the gap between the two is what you should look at. The test suite checks that the parts add up to the total.
 
-### 6. Ranked de-risking prescription
+### 6. Ranked suggestions
 
-The part that makes it worth opening twice.
-
-Sentinel enumerates realistic actions (trim 25/50/100%, halve leverage, take to spot), **re-simulates the entire portfolio under each one**, and ranks them by:
+Sentinel tries a set of realistic changes (trim a position by 25%, 50% or 100%, halve its leverage, or move it to spot), reruns the full simulation for each one, and ranks them by:
 
 ```
-efficiency = Δ(ruin probability) / (cost as a fraction of exposure or equity)
+efficiency = reduction in ruin probability / cost (as a share of exposure or equity)
 ```
 
-Ranking by raw reduction is useless because closing everything always wins. Ranking by efficiency finds the *cheapest* fix. Every candidate is evaluated against the same bootstrap draws as the baseline, so the differences reflect the action rather than simulation noise.
+Ranking by the raw reduction alone would always suggest closing everything, which isn't useful. Ranking by efficiency finds the cheapest fix. Every candidate is run on the same simulated paths as the original portfolio, so the differences come from the change itself and not from random noise.
 
-The shortlist is then filtered for variety (at most one action per position, plus a cap on repeats of any single action kind) because a list showing "take X to spot" five times with different tickers isn't offering a choice.
+The list is limited to one suggestion per position and at most two of each kind of change. Otherwise it tends to repeat "move X to spot" for every coin.
 
-### 7. Three VaR estimators, shown together
+### 7. Three VaR estimates side by side
 
-Historical simulation, variance-covariance, and Cornish-Fisher (corrected for skew and excess kurtosis), reported side by side **on purpose**. When the historical figure sits well above the normal-distribution one, the portfolio's risk lives in a handful of specific days rather than in day-to-day volatility, and any model that only knows about volatility will under-size it. That gap is itself an alert rule.
+Value at Risk is calculated three ways: from historical returns, from a normal distribution, and with the Cornish-Fisher adjustment for fat tails. When the historical number is well above the normal one, the risk is concentrated in a few extreme days, and any model that only looks at volatility will underestimate it. Sentinel raises an alert when that gap is large.
 
-### 8. Liquidation touch probability
+### 8. Chance of touching the liquidation price
 
-Distance-to-liquidation is the wrong number: being briefly wrong is enough to be closed out. Sentinel reports the probability of **touching** the barrier at any point in the horizon, via the reflection principle for driftless GBM:
+How far you are from your liquidation price is less useful than it looks, because the price only has to touch that level once for you to be closed out. Sentinel reports the chance of touching it at any point in the period:
 
 ```
 P( min_{t≤T} S_t ≤ B ) = 2 · Φ( ln(B/S) / (σ√T) )
@@ -119,59 +115,79 @@ P( min_{t≤T} S_t ≤ B ) = 2 · Φ( ln(B/S) / (σ√T) )
 
 ### 9. Does the model actually work?
 
-The other eight sections are the model talking. This one is the model being marked.
+Most risk tools never check their own numbers against what happened. Sentinel runs two out-of-sample tests from `/api/backtest`. Every forecast uses only data from before the day it is scored on.
 
-A risk tool that has never been backtested is a risk tool that has never been contradicted, and most of them never are; they ship a number and move on. Sentinel runs two independent out-of-sample checks, on demand, from `/api/backtest`. Every forecast is produced from data ending strictly before the outcome it is scored against.
+**VaR backtest.** Going one day at a time, all three VaR models are refit on the previous 120 days, and each forecast is compared with what happened the next day. The days where losses beat the forecast are then run through the standard tests:
 
-**VaR exception testing.** The history is walked one day at a time. At each day, all three VaR estimators are re-fitted on a rolling 120-day window ending the day before, and the forecast is compared with what actually happened. The exception sequence is then put through the standard battery:
-
-| Test | Asks | Distribution |
+| Test | Question | Distribution |
 |---|---|---|
-| Kupiec (1995) proportion-of-failures | Is the *number* of exceptions right? | χ²(1) |
-| Christoffersen (1998) independence | Are exceptions *clustered*? | χ²(1) |
-| Conditional coverage | Both jointly | χ²(2) |
+| Kupiec (1995) | Is the *number* of misses right? | χ²(1) |
+| Christoffersen (1998) | Do the misses *cluster*? | χ²(1) |
+| Conditional coverage | Both at once | χ²(2) |
 
-Both χ² tails have closed forms at these degrees of freedom (`P(X>x) = 2(1-Φ(√x))` for df 1, `exp(-x/2)` for df 2) so there is no special-function library in the path here either. The p-values are verified against published critical tables in `tests/backtest.test.ts`.
+The clustering test matters because ten misses spread over a year is a working model, while ten misses in ten days means the account is gone. The Kupiec test can't tell those apart. On test data, a clustered sequence scores 137 on the Christoffersen test against 2.0 for an evenly spread one. The p-values are checked against published tables in `tests/backtest.test.ts`.
 
-The independence test is the one that earns its place. Kupiec cannot tell the difference between ten exceptions spread evenly across a year and ten on ten consecutive days; the first is a working model, the second is an account that no longer exists. Christoffersen separates them: on a deliberately clustered sequence the statistic is 137, against 2.0 for an evenly spread one.
+**Survival backtest.** At each starting date, the simulation is run on the data before that date, and then the real next 30 days are replayed with the same liquidation rules to see whether the account actually got wiped out. The forecasts are scored with a Brier score, compared with simply guessing the average rate, and plotted as a reliability curve.
 
-Running this produced a finding I did not expect and have not smoothed over: **the 99% variance-covariance estimator fails on every leveraged preset**, with realised exception rates around 3% against 1% expected, while Cornish-Fisher passes. That is the fat-tail argument for the Cornish-Fisher correction stated as a measurement rather than as a footnote, and it means the normal-distribution VaR number in the UI is there to be compared against, not to be sized off.
+Two caveats are shown in the panel, not hidden:
 
-**Survival calibration.** The headline ruin probability is scored directly. At each walk-forward origin the simulation is run on the training window alone, and the realised path over the following horizon is replayed with identical liquidation accounting to see whether the account really did breach the threshold. The pairs are scored with a Brier score, a Brier skill score against the sample base rate, and a reliability curve.
+- Starting dates a few days apart share most of their 30-day window, so they aren't independent. The panel reports how many non-overlapping windows there really are, which is much smaller than the number of starting dates.
+- Looking well calibrated on a small sample doesn't prove the model right. Looking badly calibrated does show it's wrong. So the direction of any bias matters more than the exact score.
 
-Two things are reported rather than hidden:
+### Results on real data
 
-- **Overlapping horizons.** Origins three days apart share most of their outcome window, so the outcomes are heavily autocorrelated and the origin count massively overstates the evidence. The panel reports an *effective sample size*: the number of non-overlapping horizons. It is usually an order of magnitude smaller. On a two-year sample it is about twenty.
-- **The asymmetry.** A model that looks well calibrated on a sample this size is not proven correct; there is not enough independent evidence for that. A model that looks badly calibrated **is** proven wrong. That asymmetry is the entire reason the panel exists, and it is why the number worth reading is the direction of the bias, not the third decimal.
+These are from the committed dataset of Coinbase daily closes. Every preset includes SOL, which Coinbase listed in June 2021, so the usable history is June 2021 to September 2026: 1,924 days, with 1,804 days scored after the first 120-day training window.
 
----
+**99% VaR, how often losses beat the forecast (the target is 1%):**
 
-## Where the numbers come from
+| Preset | Historical | Normal | Cornish-Fisher |
+|---|---|---|---|
+| The diversified alt book | 1.55% (fail) | 1.55% (fail) | 1.22% (pass) |
+| Levered majors | 1.77% (fail) | 1.88% (fail) | 1.50% (pass) |
+| Long alts / short BTC | 1.50% (fail) | 1.72% (fail) | 1.11% (pass) |
+| Unlevered spot | 1.83% (fail) | 1.88% (fail) | 1.50% (pass) |
 
-Three tiers of price data, tried in order, and the difference is visible on every surface that uses them:
+The fat-tail adjustment is the only 99% model that passes on every preset. The plain historical and normal models both miss too often, so they understate the worst-day risk. At 95%, all three models pass on every preset except Long alts / short BTC, where all three fail because their misses cluster.
 
-| Tier | What it is | How it is labelled |
+**30-day survival forecast (ruin means losing half the account), about 60 independent 30-day windows:**
+
+| Preset | Average forecast | Actual rate | Brier skill vs. base rate |
+|---|---|---|---|
+| The diversified alt book | 16.2% | 16.0% | −0.06 |
+| Levered majors | 15.3% | 16.0% | −0.06 |
+| Long alts / short BTC | 29.9% | 28.0% | −0.03 |
+| Unlevered spot | 0.2% | 0% | n/a (never happened) |
+
+On average the forecasts are close to what happened. Case by case, though, they are slightly worse than just predicting the average rate every time (a negative skill score). The reliability curve shows why: when the model said 40-60%, ruin actually happened only about 8-19% of the time, and when it said under 20%, it happened a bit more often than predicted. So the model spreads its forecasts out too much. That's the main thing to improve.
+
+To rerun these, start the app, load a preset, and click **Run validation**.
+
+## Where the price data comes from
+
+There are three sources, tried in this order. The app always tells you which one you are looking at.
+
+| Source | What it is | Label in the app |
 |---|---|---|
-| 1. Live | CoinGecko, cached and circuit-broken | normal |
+| 1. Live | CoinGecko, with caching and a circuit breaker | none |
 | 2. Committed dataset | Real daily closes in `src/data/reference-history.json` | "real closes, not current ones" |
-| 3. Synthetic | The deterministic generator in `fallback.ts` | "SYNTHETIC: structure is realistic, prices are not real" |
+| 3. Synthetic | Generated data from `fallback.ts` | "SYNTHETIC: structure is realistic, prices are not real" |
 
-Tier 2 ships empty and is populated by one command:
+The committed dataset holds Coinbase daily closes for ten coins. BTC, ETH and LINK go back to February 2020. SOL, ADA, AVAX, DOGE and DOT start at their 2021 Coinbase listings. XRP has a gap from 2021 to 2023 while Coinbase had it delisted. To refresh it:
 
 ```bash
-npm run fetch:history          # writes ~2400 daily closes per asset back to 2020
+npm run fetch:history
 ```
 
-Committing that file is what turns two claims from approximations into measurements:
+Coinbase is the default because CoinGecko's free tier only returns the last 365 days. If you have a paid CoinGecko key, set `COINGECKO_API_KEY` and the script uses CoinGecko instead.
 
-- Every **historical stress scenario** whose calendar window the data covers flips from `assumed` (a hand-specified benchmark shock propagated to each asset by its beta) to `measured` (the per-asset return that actually occurred, with no beta model in the path at all). The badge in the stress table says which one you are looking at, always. A window is only used if **every held asset** is covered; a scenario that mixed a real BTC move with a modelled SOL one would be the worst of both.
-- The **validation battery** gets years of runway instead of months, which is the difference between detecting gross miscalibration and measuring calibration.
+Having this file means:
 
-Tier 2 is deliberately a committed file rather than a runtime fetch. A stress scenario that silently changes because an upstream API backfilled a candle is not a stress scenario, it is a rumour.
+- Historical stress scenarios use the returns each coin actually had over those dates, instead of an assumed BTC move scaled by each coin's beta. The stress table marks each scenario as `measured` or `assumed`. A scenario is only measured if the data covers every coin in the portfolio. With the current data, LUNA (May 2022), FTX (Nov 2022) and the yen carry unwind (Aug 2024) are measured for all four presets. COVID (Mar 2020) and May 2021 stay assumed, because SOL wasn't on Coinbase yet.
+- The validation panel has years of data to test against instead of months.
 
----
+The file is committed rather than downloaded at runtime so that the stress results don't quietly change when an API revises old prices.
 
-## Architecture
+## How it's built
 
 ```mermaid
 flowchart TB
@@ -182,31 +198,33 @@ flowchart TB
     subgraph server["Next.js route handlers (Node runtime)"]
         MK["/api/markets"]
         RK["/api/risk"]
+        BT["/api/backtest"]
         EX["/api/explain<br/>optional"]
     end
 
     subgraph data["Data layer"]
         CG["CoinGecko client<br/>retry · backoff · circuit breaker"]
         CA["TTL cache<br/>request coalescing"]
-        FB["Bundled reference dataset<br/>clearly labelled, never silent"]
+        FB["Committed dataset, then synthetic<br/>always labelled"]
     end
 
-    subgraph engine["Risk engine, pure TypeScript, zero dependencies"]
+    subgraph engine["Risk engine, plain TypeScript, no dependencies"]
         AL["Series alignment"]
         ST["Statistics · matrix ops · Jacobi eigensolver"]
         RG["Regime split"]
-        VR["VaR · ES · Euler attribution"]
-        SV["Block-bootstrap survival MC"]
-        CS["Liquidation cascade"]
+        VR["VaR · ES · attribution"]
+        SV["Block-bootstrap survival simulation"]
+        CS["Liquidation ladder"]
         SS["Stress scenarios"]
-        PR["Prescription search"]
-        NR["Deterministic narrator"]
+        PR["Suggestion search"]
+        NR["Written assessment"]
         AA["Alert rules"]
     end
 
-    UI --> MK & RK & EX
+    UI --> MK & RK & BT & EX
     MK --> CG
     RK --> CG
+    BT --> CG
     CG --> CA
     CG -.upstream down.-> FB
     RK --> AL --> ST --> RG & VR & SV & CS & SS
@@ -215,81 +233,77 @@ flowchart TB
     NR --> UI
 ```
 
-**Every quantitative operation runs server-side.** That is deliberate: the simulation is a few million floating-point operations, any upstream API key must never reach the browser, and keeping the engine behind one endpoint means the numbers in the UI and the numbers a future API client would get are produced by the same code path.
+All the math runs on the server. The simulation does a few million calculations per request, API keys must never reach the browser, and keeping it behind one endpoint means any future API client gets exactly the same numbers as the UI.
 
-**The risk engine has zero runtime dependencies.** No `mathjs`, no `simple-statistics`. Every estimator. Acklam's inverse normal CDF, Cornish-Fisher, Jacobi eigenvalues, Cholesky with shrinkage fallback, the stationary bootstrap, is implemented and unit-tested against known answers in `src/lib/risk/`. That was a choice about being able to defend every number, not about avoiding `npm install`.
+The risk engine has no runtime dependencies. Every estimator (the inverse normal CDF, Cornish-Fisher, Jacobi eigenvalues, Cholesky, the bootstrap) is written by hand in `src/lib/risk/` and tested against known answers. I wanted to be able to explain every number line by line.
 
 ### Project layout
 
 ```
 src/
   app/
-    page.tsx                  dashboard orchestration
-    api/markets/route.ts      cached market snapshot
-    api/risk/route.ts         the single compute endpoint
+    page.tsx                  the dashboard
+    api/markets/route.ts      cached market prices
+    api/risk/route.ts         main risk calculation
     api/backtest/route.ts     out-of-sample validation
-    api/explain/route.ts      optional conversational layer
+    api/explain/route.ts      optional follow-up questions
   components/
-    charts.tsx                survival fan · cascade · attribution · heatmaps
-    panels.tsx                alerts · prescription · stress · narrative
+    charts.tsx                survival fan, ladder, attribution, heatmaps
+    panels.tsx                alerts, suggestions, stress table, assessment
     ValidationPanel.tsx       backtest results and reliability curve
-    PositionEditor.tsx        portfolio table with presets
-    ui.tsx                    primitives
+    PositionEditor.tsx        portfolio table and presets
+    ui.tsx                    shared UI pieces
   lib/
     risk/
-      stats.ts                mean/var/quantile/skew/kurtosis, normal CDF + inverse
+      stats.ts                mean, variance, quantiles, skew, kurtosis, normal CDF
       matrix.ts               covariance, correlation, Jacobi eigenvalues, Cholesky
-      returns.ts              series alignment, portfolio P&L
-      var.ts                  three VaR estimators, Euler ES attribution
-      regime.ts               volatility-regime correlation split, effective bets
-      survival.ts             stationary block bootstrap Monte Carlo
-      cascade.ts              liquidation ladder and cluster detection
-      stress.ts               named historical scenarios, beta-propagated
-      performance.ts          drawdown, Sharpe/Sortino, touch probability
-      prescribe.ts            candidate search and efficiency ranking
-      alerts.ts               threshold rules with stated values
-      narrate.ts              deterministic risk narrator
-      backtest.ts             Kupiec · Christoffersen · walk-forward calibration
-      engine.ts               orchestration
+      returns.ts              lining up price series, portfolio P&L
+      var.ts                  three VaR models, ES attribution
+      regime.ts               calm vs. stressed correlation, effective bets
+      survival.ts             block bootstrap simulation
+      cascade.ts              liquidation ladder
+      stress.ts               historical scenarios
+      performance.ts          drawdown, Sharpe, Sortino, touch probability
+      prescribe.ts            suggestion search and ranking
+      alerts.ts               alert rules
+      narrate.ts              written assessment
+      backtest.ts             Kupiec, Christoffersen, survival calibration
+      engine.ts               ties it all together
     market/
-      coingecko.ts            live client with circuit breaker
-      cache.ts                TTL cache with request coalescing
-      dataset.ts              committed real-close dataset loader
-      fallback.ts             labelled synthetic reference dataset
+      coingecko.ts            live price client with circuit breaker
+      cache.ts                TTL cache
+      dataset.ts              loads the committed dataset
+      fallback.ts             synthetic data
   data/
-    reference-history.json    committed daily closes (npm run fetch:history)
+    reference-history.json    committed daily closes
 scripts/
-  fetch-history.mjs           populates the dataset above
+  fetch-history.mjs           rebuilds the dataset
 tests/
   stats.test.ts               known-answer tests for every estimator
-  engine.test.ts              invariants, monotonicity, end-to-end
-  backtest.test.ts            statistical tests vs published critical values
-  performance.test.ts         drawdown regressions, scenario provenance
+  engine.test.ts              invariants and end-to-end checks
+  backtest.test.ts            statistical tests against published tables
+  performance.test.ts         drawdown and scenario checks
 ```
 
----
+## Bugs worth mentioning
 
-## Engineering decisions worth calling out
+**Drawdowns that were impossible.** The first version of the drawdown chart kept each position's dollar exposure fixed as the account lost money. That isn't a passive portfolio. It's one that adds leverage every time it loses, and it drove an unlevered spot portfolio to zero, which can't happen. Separately, nothing stopped the balance going below zero, so a leveraged portfolio showed a −335% drawdown. The fix: hold the number of coins fixed, apply the same liquidation rules the simulation uses, and stop at zero. `tests/performance.test.ts` checks that an unlevered portfolio can never be wiped out. (Fixed dollar exposure is still correct for one-day VaR, so that calculation is kept separate.)
 
-**Two bugs in the drawdown back-cast, both of which produced impossible numbers.** The first version walked equity as `equity += Σ notional_i · r_i,t` with notionals fixed at today's values. Holding *dollar* exposure constant while equity falls is not a passive book, it is a strategy that re-levers into every drawdown, and it drove an **unlevered spot portfolio to zero**, which cannot happen. A real book holds constant *quantity* and lets exposure shrink with price. Separately, with no floor at zero a levered book reported a drawdown of **−335%**; an account whose equity reaches zero has been closed by the venue, and everything after that is a simulation of trading with money that no longer exists. The curve is now compounded, position-by-position, with the same liquidation accounting the Monte Carlo uses, and it is absorbing at zero. Drawdown is bounded to [−1, 0] by construction, and `tests/performance.test.ts` asserts that an unlevered book can never be ruined.
+**Liquidations counted as profits.** If a position was already losing more than its margin, the stress test's liquidation loss came out negative, so getting liquidated showed up as a gain. The Long alts / short BTC preset, whose BTC short was opened far below today's price, showed +109% in the LUNA crash. The loss is now floored at zero, and there's a test for it.
 
-(Constant-notional P&L is still exactly right for **VaR**, which is a single-period measure where P&L is linear in returns. It is only wrong when compounded, which is why the two now live in different functions.)
+**Sortino ratio.** The downside deviation should average the squared losses over *all* days, not just the losing ones. Dividing by the number of losing days makes the ratio look worse than it really is.
 
-**Sortino divides by the right N.** Target downside deviation is `sqrt( (1/N) Σ min(r_t,0)² )`: the sum runs over losing days, the average over *all* observations. Dividing by the count of losing days instead, the easy mistake, and what this did, inflates the denominator and silently reports a worse ratio than the definition gives.
+**Price series that don't line up.** Different coins come back with slightly different timestamps, listing dates and gaps. Building a covariance matrix from misaligned data quietly gives wrong answers. `alignSeries` matches prices by calendar day, fills at most one missing day, and drops (and reports) any coin with less than 80% coverage.
 
-**Series alignment happens before anything else.** Upstream returns slightly different timestamps per asset, different listing dates, occasional gaps. Computing a covariance matrix across misaligned series silently produces garbage, and it is the classic bug in home-made risk tools. `alignSeries` intersects on calendar day, forward-fills at most one missing day, and *drops and reports* any asset with under 80% coverage rather than quietly corrupting the matrix.
+**Bad input gives zero, not NaN.** An empty or half-filled portfolio produces a dull report instead of `NaN%` on screen.
 
-**Degenerate input returns zero, never NaN.** Every statistics primitive is total. A half-filled portfolio produces a boring report, not `NaN%` in the UI.
+**Cholesky falls back gracefully.** Correlation matrices from short windows often aren't positive definite. Instead of throwing, the decomposition shrinks toward the identity matrix until it works, and reports how much it had to shrink.
 
-**Cholesky has a shrinkage fallback.** Sample correlation matrices from short windows are frequently not positive definite. Rather than throwing, the decomposition progressively shrinks toward the identity until it succeeds, and reports the shrinkage factor.
+**The circuit breaker.** Without it, when the upstream API is down, every request waits through the full retry and backoff before falling back, so the page gets slowest exactly when the data is worst. I measured 4.6s per request with the API failing, and 316ms once the breaker opens.
 
-**The circuit breaker exists because of a real failure mode.** Without it, an upstream outage costs *every* request the full retry-and-backoff budget before falling back, so the page gets slower precisely when the data is worst. Measured: 4.6s cold with upstream failing, 316ms once the breaker opens.
+**The written assessment isn't an LLM.** A risk summary that words things differently for the same portfolio is a problem. The assessment is generated by code, and every number in it comes from a field in the report. The optional Claude endpoint only answers follow-up questions, and the app works fully without an API key.
 
-**The narrator is deterministic, not an LLM.** A risk explanation that changes wording between two identical portfolios is a liability. The written assessment is generated from the report by code, and every figure in it traces to a field in the model output. The optional Claude endpoint adds *follow-up questions* on top; it never replaces the assessment, and the app is fully functional without an API key.
-
-**The fallback dataset is labelled everywhere it appears.** When the live feed is unreachable the app still works, but a banner, a badge, and a field in the API response all say the prices are not current. A risk tool that silently shows stale numbers is worse than one that shows none.
-
----
+**Synthetic data is always labelled.** When live data isn't available, the app still works, but a banner, a badge and a field in the API response all say the prices aren't current.
 
 ## Running it
 
@@ -299,51 +313,38 @@ npm run dev          # http://localhost:3000
 ```
 
 ```bash
-npm test             # 93 tests
+npm test
 npm run typecheck
+npm run lint
 npm run build
 ```
 
-No environment variables are required. Two are optional:
+No environment variables are needed. Two are optional:
 
-| Variable | Effect if absent |
+| Variable | Without it |
 |---|---|
-| `COINGECKO_API_KEY` | Free tier is used; rate limits are handled by cache + breaker + fallback |
-| `ANTHROPIC_API_KEY` | Follow-up question box returns a clear "not configured" message; everything else works |
+| `COINGECKO_API_KEY` | Uses CoinGecko's free tier. The cache, circuit breaker and fallback handle rate limits. |
+| `ANTHROPIC_API_KEY` | The follow-up question box says it isn't configured. Everything else works. |
 
-Copy `.env.example` to `.env.local` to set them.
+Copy `.env.example` to `.env.local` to set them. See [DEPLOY.md](DEPLOY.md) to put it on Vercel.
 
----
+## What the model can't see
 
-## Deploying
+Sentinel works from daily closing prices, so it knows nothing about:
 
-Push to GitHub, then import the repository at [vercel.com/new](https://vercel.com/new). Framework detection, build command, and output directory are all automatic, no configuration needed. Add the optional environment variables under **Settings → Environment Variables** if you want them.
+- an exchange going bust
+- stablecoin depegs or oracle failures
+- funding rates and fees
+- slippage during a liquidation cascade (real liquidations are worse than modelled)
+- a move bigger than anything in the data
+- liquidations that happen within a day, since it steps one day at a time
 
----
+Cross-margin accounts are treated as isolated margin. That's the more cautious choice for the liquidation ladder, but it isn't how every exchange works.
 
-## What this model cannot see
+Treat every number as a lower bound on how bad things can get. The tool is best for comparing portfolios against each other, not as a forecast.
 
-Stated here as prominently as in the UI, because a risk tool that oversells its own coverage is worse than no risk tool.
+This is not investment advice.
 
-Sentinel is built on daily closes and a bootstrap of those same days. It has **no view** on:
+## License
 
-- venue insolvency or counterparty failure
-- stablecoin depegs and oracle failure
-- funding costs and fee drag
-- slippage and liquidity gaps during a cascade, real liquidations are worse than modelled
-- any move larger than the largest one in its sample
-- **intraday** liquidation risk, which is understated because the model steps one day at a time
-
-Cross-margin accounts are modelled as isolated margin, which is the conservative direction for cascade analysis but not what every venue actually does.
-
-Any stress scenario still badged `assumed` is a beta-propagated approximation rather than a measurement, `npm run fetch:history` is what fixes that, and the badge is what tells you whether it has been run.
-
-Treat every number as a lower bound on how bad things can get, and as a tool for **comparing portfolios against each other** rather than as a forecast.
-
-Nothing here is investment advice.
-
----
-
-## Licence
-
-MIT.
+MIT

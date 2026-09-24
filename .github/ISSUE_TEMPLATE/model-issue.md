@@ -8,7 +8,7 @@ labels: model
 Panel and field, e.g. "95% VaR, parametric estimator".
 
 **What it showed / what you expected**
-Include the portfolio if you can — presets are easiest to reproduce from.
+Include the portfolio if you can. Presets are easiest to reproduce from.
 
 **Why you think it's wrong**
 A derivation, a reference, or a case where the output is impossible
